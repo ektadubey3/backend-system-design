@@ -342,8 +342,8 @@ This repository contains architecture diagrams including:
 # Progress
 | Topic                  | Status  |
 | ---------------------- | ------- |
-| Fundamentals           | 🚧     |
-| Networking             | ⏳     |
+| Fundamentals           | ✅     |
+| Networking             | 🚧     |
 | Databases              | ⏳     |
 | Caching                | ⏳     |
 | Messaging              | ⏳     |
