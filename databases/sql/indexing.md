@@ -413,7 +413,7 @@ Monitor indexing lag, queue depth, event failure rate, document count, shard bal
 
 ---
 
-## 3 Key Takeaways
+## Key Takeaways
 
 1. **Indexes exchange storage and write cost for faster reads.** Every index should support a real access pattern.
 2. **At scale, indexing is a distributed data pipeline.** Correctness depends on durable events, idempotency, versioning, sharding, and reconciliation.
