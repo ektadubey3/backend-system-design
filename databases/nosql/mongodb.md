@@ -1,123 +1,289 @@
-# MongoDB
+# MongoDB for System Design
 
-MongoDB is easy to start with, but designing a backend that continues to perform at **millions of documents, high request volumes, and distributed workloads** requires understanding how the database behaves under the hood.
+MongoDB is a document database with replica sets, sharding, secondary indexes, aggregation, transactions, change streams, and configurable read/write concerns.
 
-This document focuses on the **system design concepts that matter in real production systems and technical interviews**.
+Its strongest system-design value appears when the **document is the natural consistency and access boundary**.
+
+Do not choose MongoDB because “the schema is flexible” or “NoSQL scales.” Choose it because the document model and distribution strategy fit the workload.
 
 ---
 
-## Core Concepts
+## Interview TL;DR
 
-### 1. Document Model
+1. Model around **access patterns and ownership boundaries**, not a direct table-to-collection translation.
+2. Single-document operations are atomic; embedding can reduce cross-document coordination.
+3. Multi-document and distributed transactions exist, but they have higher cost and should not replace good schema design.
+4. Replica sets provide high availability; read concern, write concern, and read preference determine important consistency/durability behavior.
+5. Default read concern is commonly `local`; data read at that level can later roll back in some failure scenarios.
+6. Majority write concern and majority read concern provide stronger durability/consistency properties; linearizable read concern is stronger and can be slower.
+7. Sharding distributes data, but a bad shard key creates hot chunks or scatter/gather queries.
+8. High shard-key cardinality is insufficient by itself; consider **frequency, monotonicity, and query targeting**.
+9. Secondary reads can be stale. Read preference is a routing policy, not a consistency guarantee.
+10. MongoDB and PostgreSQL are workload choices, not “scale vs transactions.”
 
-MongoDB stores data as **BSON documents** instead of rows and columns.
+---
+
+# 1. Document Model
+
+Example:
 
 ```json
 {
-  "_id": "user_101",
-  "name": "Alex",
-  "email": "alex@example.com",
-  "address": {
-    "city": "Bangalore",
-    "country": "India"
-  }
+  "_id": "order-1001",
+  "customerId": "user-10",
+  "status": "PAID",
+  "items": [
+    {
+      "productId": "p-1",
+      "nameAtPurchase": "Keyboard",
+      "priceAtPurchase": 5999,
+      "quantity": 1
+    }
+  ],
+  "createdAt": "..."
 }
 ```
 
-Documents can contain:
+Ask:
 
-* Nested objects
-* Arrays
-* Flexible fields
-* References to other documents
+> What data must be read and changed together?
 
-The biggest mindset shift when moving from relational databases is:
-
-> Model data around **application access patterns**, not only around entities.
+The document is a natural atomicity boundary.
 
 ---
 
-### 2. Embedding vs Referencing
+# 2. Embedding vs Referencing
 
-MongoDB relationships are generally modeled using either **embedded documents** or **references**.
+## Embed when
 
-#### Embedding
+- child belongs to one aggregate/owner
+- data is usually read together
+- updates are naturally coordinated
+- collection is bounded
+- atomic single-document update is valuable
+
+## Reference when
+
+- child grows without bound
+- many parents share the entity
+- it changes independently
+- separate query lifecycle is useful
+- duplication cost is high
+
+Avoid “always embed” and “normalize everything.”
+
+---
+
+# 3. Bounded Documents
+
+MongoDB documents have finite size and practical update/read costs.
+
+Avoid:
 
 ```json
 {
-  "_id": "order_1001",
-  "customer": {
-    "name": "Alex",
-    "email": "alex@example.com"
-  },
-  "items": [
-    {
-      "product": "Keyboard",
-      "quantity": 1
-    }
+  "userId": "...",
+  "allEventsEver": [
+    "...",
+    "millions more"
   ]
 }
 ```
 
-Best when:
+Use separate collections/bucketing for unbounded relationships:
 
-* Data is frequently read together.
-* Child data belongs to one parent.
-* The embedded collection will remain reasonably small.
-
-#### Referencing
-
-```json
-{
-  "_id": "order_1001",
-  "userId": "user_101",
-  "productIds": ["product_10", "product_20"]
-}
-```
-
-Best when:
-
-* Data changes independently.
-* Multiple documents share the same entity.
-* Embedded documents could grow without limits.
+- events
+- notifications
+- comments
+- transactions
+- logs
 
 ---
 
-### 3. Indexing
+# 4. Intentional Denormalization
 
-Indexes reduce the amount of data MongoDB must scan.
+Order snapshots are a good fit:
 
-Without an index:
-
-```text
-Request
-   |
-   v
-Scan thousands/millions of documents
-   |
-   v
-Return result
+```json
+{
+  "productId": "p-1",
+  "nameAtPurchase": "Keyboard",
+  "priceAtPurchase": 5999
+}
 ```
 
-With an index:
+The duplicated value is historically correct and should not change when the product catalog changes.
 
-```text
-Request
-   |
-   v
-Index Lookup
-   |
-   v
-Matching Documents
-```
+Denormalization is not merely a performance hack; it can encode domain semantics.
+
+---
+
+# 5. Single-Document Atomicity
+
+MongoDB guarantees atomicity at the single-document operation boundary.
+
+If the invariant can be modeled inside one document, you often avoid a multi-document transaction.
 
 Example:
+
+```javascript
+db.inventory.updateOne(
+  { _id: "product-1", stock: { $gt: 0 } },
+  { $inc: { stock: -1 } }
+)
+```
+
+Check the modification result.
+
+---
+
+# 6. Multi-Document Transactions
+
+MongoDB supports transactions across:
+
+- documents
+- collections
+- databases
+- shards
+
+Use them when one business invariant truly spans those boundaries.
+
+Trade-offs:
+
+- more coordination
+- higher latency
+- retry/error handling
+- transaction lifetime limits
+- more sensitivity to shard topology
+
+Do not redesign a relational aggregate into dozens of collections just to “avoid joins” and then rebuild every request as a distributed transaction.
+
+---
+
+# 7. Replica Sets
+
+Typical topology:
+
+```mermaid
+flowchart TD
+    A[Application] --> P[(Primary)]
+    P --> S1[(Secondary 1)]
+    P --> S2[(Secondary 2)]
+```
+
+The primary normally accepts writes.
+
+Replica sets provide:
+
+- redundancy
+- election/failover
+- optional secondary reads
+
+But “replica set” does not by itself define the application's consistency guarantee.
+
+---
+
+# 8. Write Concern
+
+Write concern controls acknowledgement.
+
+Conceptually:
+
+```text
+w: 1
+  ↓
+ack from primary path
+
+w: "majority"
+  ↓
+stronger replica acknowledgement requirement
+```
+
+The exact durability guarantee also interacts with journaling and deployment configuration.
+
+Use stronger write concern when acknowledged-write loss is less acceptable.
+
+Cost:
+
+- latency
+- sensitivity to replica/network health
+
+---
+
+# 9. Read Concern
+
+Important levels include:
+
+- `local`
+- `available`
+- `majority`
+- `linearizable`
+- `snapshot`
+
+The correct choice depends on:
+
+- stale/rollback tolerance
+- transaction semantics
+- causal consistency
+- latency
+
+Do not say:
+
+> “Reading from primary means strongly consistent.”
+
+Read concern still matters, and primary leadership can change during failures.
+
+---
+
+# 10. Read Preference
+
+Read preference determines eligible replica-set members.
+
+Modes include primary, secondary-oriented, and nearest-style policies.
+
+It does **not** guarantee freshness.
+
+Using secondaries can improve locality/read distribution while introducing stale reads.
+
+---
+
+# 11. Causal Consistency
+
+Causally consistent sessions can provide guarantees such as read-your-writes when configured with appropriate acknowledged writes/read concerns.
+
+Useful when:
+
+```text
+client writes profile
+      ↓
+client immediately reads profile
+```
+
+and seeing the previous state would be confusing.
+
+---
+
+# 12. Linearizable Reads
+
+Linearizable read concern is a strong single-document read semantic.
+
+It can require additional coordination and can be significantly slower than weaker reads.
+
+Use timeouts and only pay for it when the invariant requires it.
+
+Do not make all reads linearizable because the word sounds safest.
+
+---
+
+# 13. Indexing
+
+Single-field:
 
 ```javascript
 db.users.createIndex({ email: 1 })
 ```
 
-Compound index:
+Compound:
 
 ```javascript
 db.orders.createIndex({
@@ -126,718 +292,344 @@ db.orders.createIndex({
 })
 ```
 
-The **order of fields matters** in compound indexes.
+Design indexes from:
 
-A useful rule:
+- equality filters
+- sort
+- range
+- projection
+- cardinality
+- write rate
 
-> Create indexes based on your most important query patterns.
+Indexes increase:
 
----
-
-### 4. Replication
-
-MongoDB uses **Replica Sets** for high availability.
-
-```text
-                 ┌─────────────┐
-                 │   Primary   │
-                 │   MongoDB   │
-                 └──────┬──────┘
-                        │
-             Replication│
-              ┌─────────┴─────────┐
-              │                   │
-              v                   v
-      ┌──────────────┐    ┌──────────────┐
-      │ Secondary 1  │    │ Secondary 2  │
-      └──────────────┘    └──────────────┘
-```
-
-The **Primary** usually handles writes.
-
-Secondaries continuously replicate data from the primary.
-
-If the primary becomes unavailable, an eligible secondary can be elected as the new primary.
-
-Replication provides:
-
-* High availability
-* Automatic failover
-* Data redundancy
-* Read scaling for suitable workloads
+- storage
+- memory
+- write cost
 
 ---
 
-### 5. Sharding
+# 14. Compound Index Order
 
-Replication helps with **availability**.
+MongoDB compound-index field order matters.
 
-Sharding helps with **horizontal scalability**.
+A useful heuristic is to think about:
 
-Instead of keeping all data on one machine:
+- equality
+- sort
+- range
 
-```text
-                Application
-                     |
-                     v
-                  mongos
-                     |
-        ┌────────────┼────────────┐
-        │            │            │
-        v            v            v
-     Shard A      Shard B      Shard C
-```
+but do not apply a mnemonic mechanically.
 
-Each shard owns a portion of the dataset.
-
-For example:
-
-```text
-Shard A → users 1 - 1M
-Shard B → users 1M - 2M
-Shard C → users 2M - 3M
-```
-
-The field used to distribute data is called the **Shard Key**.
-
-Choosing the wrong shard key can create:
-
-* Hot shards
-* Uneven data distribution
-* Slow queries
-* Difficult scaling
-
-A good shard key typically provides:
-
-* High cardinality
-* Good distribution
-* Query relevance
-* Low risk of write hotspots
-
----
-
-### 6. Transactions
-
-MongoDB supports multi-document ACID transactions.
+Validate with:
 
 ```javascript
-const session = client.startSession();
-
-session.startTransaction();
-
-try {
-  await accounts.updateOne(
-    { _id: senderId },
-    { $inc: { balance: -100 } },
-    { session }
-  );
-
-  await accounts.updateOne(
-    { _id: receiverId },
-    { $inc: { balance: 100 } },
-    { session }
-  );
-
-  await session.commitTransaction();
-} catch (error) {
-  await session.abortTransaction();
-}
+.explain("executionStats")
 ```
 
-Transactions are useful when multiple writes **must succeed or fail together**.
-
-However, they should not automatically become the default design.
-
-Good document modeling can often reduce the need for distributed transactions.
+and production-like distributions.
 
 ---
 
-### 7. Consistency
+# 15. Query Explain
 
-Distributed systems frequently involve trade-offs between:
+Watch:
 
-* Consistency
-* Availability
-* Latency
-* Durability
+- documents examined
+- keys examined
+- documents returned
+- winning plan
+- sort behavior
+- index bounds
 
-MongoDB provides controls such as:
+If a query returns 20 documents after examining 5 million, you have an access-path problem even if the local development dataset looked fast.
+
+---
+
+# 16. Sharding
+
+A sharded cluster distributes a collection across shards.
+
+```mermaid
+flowchart LR
+    A[Application] --> M[mongos]
+    M --> S1[Shard A]
+    M --> S2[Shard B]
+    M --> S3[Shard C]
+```
+
+Each shard is typically a replica set.
+
+Replication solves availability/redundancy.
+
+Sharding solves capacity/distribution.
+
+---
+
+# 17. Shard-Key Design
+
+Evaluate:
+
+### Cardinality
+
+Can the key split data into enough independent ranges?
+
+### Frequency
+
+Do a few values dominate?
 
 ```text
-Write Concern
-Read Concern
-Read Preference
+tenant = "global"
 ```
 
-For example, requiring acknowledgment from multiple replica-set members increases durability but may also increase write latency.
+can be a hotspot even if the field has many other possible values.
+
+### Monotonicity
+
+A monotonically increasing ranged shard key can route new inserts toward one end of the keyspace.
+
+### Query targeting
+
+Does the common query include the shard key or its useful prefix?
+
+Without it, `mongos` may broadcast to many/all shards.
 
 ---
 
-## Architecture
+# 18. Hashed vs Ranged Sharding
 
-A common production MongoDB backend could look like this:
+## Hashed
+
+Can spread writes more evenly.
+
+Cost:
+
+- loses natural range locality for that key
+- range queries may fan out
+
+## Ranged
+
+Preserves locality and targeted range queries.
+
+Risk:
+
+- monotonically increasing keys can hotspot
+- uneven ranges can create skew
+
+Choose from workload.
+
+---
+
+# 19. Scatter/Gather
+
+Query without a usable shard key:
 
 ```text
-                           Users
-                             |
-                             v
-                     ┌───────────────┐
-                     │ Load Balancer │
-                     └───────┬───────┘
-                             |
-              ┌──────────────┼──────────────┐
-              │              │              │
-              v              v              v
-        ┌──────────┐   ┌──────────┐   ┌──────────┐
-        │ API Node │   │ API Node │   │ API Node │
-        └────┬─────┘   └────┬─────┘   └────┬─────┘
-             │              │              │
-             └──────────────┼──────────────┘
-                            |
-              ┌─────────────┼─────────────┐
-              │                           │
-              v                           v
-        ┌─────────────┐             ┌─────────────┐
-        │    Redis    │             │   Message   │
-        │    Cache    │             │    Queue    │
-        └─────────────┘             └──────┬──────┘
-                                          |
-                                          v
-                                    ┌─────────────┐
-                                    │   Workers   │
-                                    └──────┬──────┘
-                                          
-                     ┌─────────────────────────────┐
-                     │       MongoDB Cluster       │
-                     │                             │
-                     │  Primary + Replica Members  │
-                     │          or                 │
-                     │       Sharded Cluster       │
-                     └─────────────────────────────┘
+mongos
+  ├─ shard A
+  ├─ shard B
+  ├─ shard C
+  └─ shard D
 ```
 
-### Request Flow
+Tail latency becomes tied to fan-out.
 
-A typical read request:
+Adding shards can make a scatter/gather workload more expensive.
+
+“Sharding scales horizontally” is only true when routing and workload distribute well.
+
+---
+
+# 20. Resharding
+
+Shard-key mistakes are not necessarily permanent, but resharding is a major operation.
+
+Modern MongoDB supports resharding/refining capabilities, but this does not make initial shard-key design unimportant.
+
+Migration consumes:
+
+- I/O
+- network
+- storage
+- operational attention
+
+---
+
+# 21. Transactions on Sharded Clusters
+
+Cross-shard transactions are supported, but they are more expensive than single-shard/document operations.
+
+For a transaction requiring a consistent snapshot across multiple shards, read-concern choice matters.
+
+Model for locality first.
+
+---
+
+# 22. Change Streams
+
+Change streams expose data changes without directly tailing internal replication logs.
+
+Useful for:
+
+- search indexing
+- cache invalidation
+- event-driven projections
+- integrations
+
+Still design:
+
+- resume/recovery
+- idempotency
+- version ordering
+- downstream retry
+- reconciliation
+
+---
+
+# 23. MongoDB vs PostgreSQL
+
+Do not frame as:
 
 ```text
-Client
-  ↓
-Load Balancer
-  ↓
-Backend API
-  ↓
-Check Redis Cache
-  ↓
-Cache Hit? ── Yes ──> Return response
-  |
-  No
-  ↓
-Query MongoDB
-  ↓
-Store result in cache
-  ↓
-Return response
+MongoDB = scale
+PostgreSQL = transactions
 ```
 
-A write-heavy asynchronous workflow:
+Both support serious transactional and distributed workloads.
+
+Choose from shape:
+
+| Driver | MongoDB | PostgreSQL |
+|---|---|---|
+| Natural unit | document aggregate | relational rows/constraints |
+| Cross-entity joins | possible, not primary modeling style | first-class |
+| Single-aggregate atomicity | natural document boundary | transaction/row boundary |
+| Flexible nested shape | native | JSONB + relational model |
+| Sharding | built-in cluster architecture | requires different approaches/extensions/distributed products |
+| SQL ecosystem | no | yes |
+
+---
+
+# 24. E-commerce Example
+
+MongoDB might be a good fit for a product/catalog aggregate with flexible category-specific attributes.
+
+But checkout should still separate:
 
 ```text
-Client
-  ↓
-API
-  ↓
-MongoDB
-  ↓
-Message Queue
-  ↓
-Background Workers
-  ↓
-Email / Analytics / Notifications / Search Index
+search/browse representation
 ```
 
-The goal is to keep the synchronous request path **small, predictable, and fast**.
-
----
-
-## MongoDB vs PostgreSQL
-
-Neither database is universally better.
-
-The correct choice depends on the system's access patterns and consistency requirements.
-
-| Area               | MongoDB                                         | PostgreSQL                               |
-| ------------------ | ----------------------------------------------- | ---------------------------------------- |
-| Data model         | Document-oriented                               | Relational                               |
-| Schema             | Flexible                                        | Strongly structured                      |
-| Nested data        | Natural fit                                     | Often normalized into tables             |
-| Joins              | Supported but not the primary modeling strategy | Excellent                                |
-| Horizontal scaling | Designed with sharding support                  | Possible, but architecture-dependent     |
-| Transactions       | Supported                                       | Extremely mature                         |
-| Best fit           | Flexible document-heavy applications            | Relational and transaction-heavy systems |
-
-### Choose MongoDB when
-
-Your application has:
-
-* Document-shaped data
-* Rapidly evolving schemas
-* Large distributed datasets
-* High horizontal-scaling requirements
-* Read patterns that benefit from denormalization
-
-### Choose PostgreSQL when
-
-Your application depends heavily on:
-
-* Complex relationships
-* Joins
-* Strong relational constraints
-* Financial-style transactional workflows
-* Complex SQL analytics
-
-The database should follow the **workload**, not the trend.
-
----
-
-# Real-World Example: E-Commerce Backend
-
-Imagine an e-commerce platform with:
+from:
 
 ```text
-10M users
-2M products
-100M orders
-Thousands of requests per second
+authoritative inventory/payment invariant
 ```
 
-A simplified architecture:
+Do not trust a cached/catalog document's stale stock field as final inventory authority.
+
+---
+
+# 25. Operational Metrics
+
+Track:
+
+- query p50/p95/p99
+- documents examined / returned
+- index usage
+- working-set/cache behavior
+- connections
+- replication lag
+- election/failover events
+- write concern latency
+- rollback events
+- shard distribution
+- chunk migration/resharding load
+- scatter/gather rate
+- slow operations
+- transaction abort/retry rate
+
+---
+
+# 26. Common Mistakes
+
+### “MongoDB has no schema”
+
+Wrong. The schema exists whether enforced/documented or accidental.
+
+### “NoSQL means eventual consistency”
+
+MongoDB provides configurable read/write concerns.
+
+### “Secondary read means scalable and safe”
+
+It can be stale.
+
+### “High-cardinality shard key is enough”
+
+Frequency, monotonicity, and query routing matter too.
+
+### “Transactions mean schema design does not matter”
+
+Distributed transactions are more expensive than single-document atomicity.
+
+### “Embed everything”
+
+Unbounded documents become a scaling problem.
+
+---
+
+# 27. Interview Questions
+
+## Replication vs sharding?
+
+Replication copies data for availability/redundancy. Sharding divides data for capacity/distribution.
+
+## What makes a good shard key?
+
+Enough cardinality, low hotspot frequency, suitable monotonicity behavior, and alignment with common query routing.
+
+## Why is read preference not a consistency setting?
+
+It chooses eligible members. Freshness depends on replication state and read concern.
+
+## When should you use a transaction?
+
+When one invariant truly requires atomic changes across multiple documents; otherwise prefer a model that keeps atomic work within one document where practical.
+
+## Why can a primary read still be insufficient for strong semantics?
+
+Read concern defines additional guarantees; topology/failover state also matters.
+
+---
+
+# Senior-Level Checklist
 
 ```text
-                         Customers
-                             |
-                             v
-                       API Gateway
-                             |
-                ┌────────────┼────────────┐
-                │            │            │
-                v            v            v
-             User API    Product API   Order API
-                │            │            │
-                └────────────┼────────────┘
-                             |
-                 ┌───────────┼───────────┐
-                 │                       │
-                 v                       v
-              Redis                  MongoDB
-             Product              Replica Set /
-              Cache               Sharded Cluster
-                                         |
-                                         v
-                                  Order Events
-                                         |
-                                         v
-                                   Message Queue
-                                         |
-                        ┌────────────────┼───────────────┐
-                        v                v               v
-                    Inventory        Email Worker   Analytics
-                     Worker
-```
-
-### Product Document
-
-```json
-{
-  "_id": "product_1201",
-  "name": "Mechanical Keyboard",
-  "category": "electronics",
-  "price": 5999,
-  "inventory": 230,
-  "rating": 4.7
-}
-```
-
-Useful indexes might include:
-
-```javascript
-db.products.createIndex({ category: 1, price: 1 })
-
-db.products.createIndex({ name: "text" })
+1. What is the aggregate/document boundary?
+2. Embed or reference — why?
+3. Can arrays grow without bound?
+4. Which invariant is single-document?
+5. Which operations truly require a transaction?
+6. What read concern?
+7. What write concern?
+8. What read preference?
+9. What is the shard key?
+10. Can queries target shards?
+11. What is the hotspot risk?
+12. How is change-stream replay handled?
+13. What is the backup/restore plan?
+14. Which metric proves sharding is necessary?
 ```
 
 ---
 
-### Order Document
-
-An order may intentionally duplicate some product information:
-
-```json
-{
-  "_id": "order_9001",
-  "userId": "user_101",
-  "status": "PAID",
-  "items": [
-    {
-      "productId": "product_1201",
-      "name": "Mechanical Keyboard",
-      "priceAtPurchase": 5999,
-      "quantity": 1
-    }
-  ],
-  "total": 5999,
-  "createdAt": "2026-08-01T10:00:00Z"
-}
-```
-
-Why duplicate `name` and `priceAtPurchase`?
-
-Because historical orders should not change when the current product name or price changes.
-
-This is a good example of **intentional denormalization**.
-
----
-
-## Best Practices
-
-### Design Schema From Queries
-
-Before designing collections, identify your major access patterns.
-
-For example:
-
-```text
-Get user by email
-Get latest 20 orders for a user
-Find products by category and price
-Get an order by orderId
-```
-
-Then model documents and indexes around these queries.
-
----
-
-### Use `explain()` Before Guessing
-
-Inspect query execution:
-
-```javascript
-db.orders
-  .find({ userId: "user_101" })
-  .sort({ createdAt: -1 })
-  .explain("executionStats")
-```
-
-Watch for excessive document scanning.
-
-A healthy query ideally examines close to the number of documents it returns.
-
----
-
-### Keep Documents Bounded
-
-Avoid arrays that can grow forever.
-
-Bad:
-
-```json
-{
-  "userId": "user_101",
-  "activityHistory": [
-    "... potentially millions of entries ..."
-  ]
-}
-```
-
-Better:
-
-```text
-users
-user_activity
-```
-
-Keep frequently growing events in their own collection.
-
----
-
-### Avoid Unnecessary Database Calls
-
-Bad:
-
-```text
-Get Order
-   ↓
-Get User
-   ↓
-Get Product 1
-   ↓
-Get Product 2
-   ↓
-Get Product 3
-```
-
-This creates unnecessary network round trips.
-
-Consider:
-
-* Embedding
-* Batch queries
-* Aggregations
-* Caching
-* Intentional denormalization
-
----
-
-### Use Pagination Correctly
-
-Offset pagination:
-
-```javascript
-.find({})
-.skip(100000)
-.limit(20)
-```
-
-can become expensive for large offsets.
-
-For large datasets, cursor-based pagination is often better:
-
-```javascript
-db.orders.find({
-  _id: {
-    $gt: lastSeenId
-  }
-}).limit(20)
-```
-
----
-
-### Index Selectively
-
-Indexes improve reads but are not free.
-
-Every additional index increases:
-
-```text
-Storage
-+
-Memory usage
-+
-Write cost
-+
-Index maintenance
-```
-
-Create indexes for real query patterns rather than indexing every field.
-
----
-
-### Monitor Production Metrics
-
-Track metrics such as:
-
-```text
-Query latency
-Connections
-CPU
-Memory
-Disk I/O
-Replication lag
-Cache hit ratio
-Slow queries
-Documents examined vs returned
-Shard distribution
-```
-
-System design does not end when the architecture diagram is finished.
-
-Production behavior matters more than the diagram.
-
----
-
-## Common Mistakes
-
-### 1. Treating MongoDB Like a Relational Database
-
-Creating many tiny collections and manually joining everything often removes the benefits of the document model.
-
-Design around **how the application reads and writes data**.
-
----
-
-### 2. Missing Indexes
-
-A query may appear fast with:
-
-```text
-1,000 documents
-```
-
-but become painful at:
-
-```text
-100,000,000 documents
-```
-
-Test using realistic data volumes.
-
----
-
-### 3. Too Many Indexes
-
-Indexes accelerate reads but slow writes.
-
-```text
-Insert Document
-      |
-      ├── Update Index A
-      ├── Update Index B
-      ├── Update Index C
-      └── Update Index D
-```
-
-Only maintain indexes that provide measurable value.
-
----
-
-### 4. Unbounded Arrays
-
-Large growing arrays create oversized documents and increasingly expensive updates.
-
-Use separate collections for unbounded relationships such as:
-
-* Logs
-* Comments
-* Notifications
-* Transactions
-* Activity events
-
----
-
-### 5. Choosing a Bad Shard Key
-
-For example, a monotonically increasing value can send a disproportionate number of writes toward one area of the cluster.
-
-Shard-key selection should be treated as an **architectural decision**, not a configuration detail.
-
----
-
-### 6. Using Transactions Everywhere
-
-Transactions can simplify correctness, but excessive cross-document transactions increase complexity and cost.
-
-First ask:
-
-> Can the schema make the operation atomic within a single document?
-
-MongoDB guarantees atomicity for operations on a single document.
-
----
-
-### 7. Scaling Before Measuring
-
-Do not immediately add:
-
-```text
-Sharding
-+
-Redis
-+
-Kafka
-+
-Multiple services
-```
-
-because a system *might* become large.
-
-Start with the simplest architecture that satisfies the requirements.
-
-Measure the bottleneck.
-
-Then scale the bottleneck.
-
----
-
-# Interview Questions
-
-### 1. What is the difference between replication and sharding?
-
-**Answer:** Replication creates copies of the same data for high availability and redundancy. Sharding distributes different portions of the dataset across multiple servers for horizontal scalability.
-
----
-
-### 2. When should you embed documents instead of referencing them?
-
-**Answer:** Embed when related data is usually accessed together, has a clear ownership relationship, and will remain bounded in size.
-
----
-
-### 3. Why are indexes important in MongoDB?
-
-**Answer:** Indexes allow MongoDB to locate matching documents without scanning the entire collection, significantly reducing query latency at scale.
-
----
-
-### 4. What makes a good shard key?
-
-**Answer:** A good shard key usually has high cardinality, distributes reads and writes evenly, avoids hotspots, and aligns with important query patterns.
-
----
-
-### 5. MongoDB is schemaless. Does that mean schema design is unnecessary?
-
-**Answer:** No. MongoDB has a flexible schema, but careful schema design is still essential for performance, scalability, data consistency, and efficient queries.
-
----
-
-# Key Takeaways
-
-### 1. Design for access patterns
-
-Do not ask only:
-
-```text
-"What entities exist?"
-```
-
-Ask:
-
-```text
-"What are my highest-volume reads and writes?"
-```
-
-Your schema should make those operations efficient.
-
----
-
-### 2. Indexes solve many problems — but create new costs
-
-Indexes can turn a collection scan into a fast lookup, but every index consumes storage, memory, and write capacity.
-
-**Index intentionally.**
-
----
-
-### 3. Scale based on bottlenecks
-
-A sensible evolution often looks like:
-
-```text
-Single MongoDB Deployment
-        ↓
-Replica Set
-        ↓
-Caching + Async Processing
-        ↓
-Read Scaling
-        ↓
-Sharding when data/write volume demands it
-```
-
-Do not build a distributed system merely because distributed systems look impressive.
-
-Build one because the workload requires it.
-
----
-
-If this document helps you think more clearly about scalable backend architecture, **⭐ star the repo and follow for more system design content.**
+## References
+
+- https://www.mongodb.com/docs/manual/core/transactions/
+- https://www.mongodb.com/docs/manual/reference/read-concern/
+- https://www.mongodb.com/docs/manual/reference/write-concern/
+- https://www.mongodb.com/docs/manual/core/read-preference/
+- https://www.mongodb.com/docs/manual/sharding/
+- https://www.mongodb.com/docs/manual/core/sharding-choose-a-shard-key/
+- https://www.mongodb.com/docs/manual/core/indexes/index-types/index-compound/

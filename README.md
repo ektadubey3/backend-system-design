@@ -150,16 +150,6 @@ Every new technical chapter should answer:
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for the full chapter template.
 
-## Documentation Quality
-
-Local documentation checks:
-
-```bash
-python scripts/check_docs.py
-```
-
-The same check runs in GitHub Actions for pull requests and pushes to `main`.
-
 ## Books
 
 Recommended foundations:

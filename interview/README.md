@@ -22,3 +22,7 @@ For every case study:
 4. Spend 5 minutes on failure modes and trade-offs.
 5. Score the answer with the rubric.
 6. Reattempt the design after several days with a new constraint.
+
+## Decision Frameworks
+
+- [Database Selection Framework](database-selection-framework.md)

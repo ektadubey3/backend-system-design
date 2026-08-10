@@ -1,420 +1,538 @@
-# Indexing
+# Database Indexing and Search Indexes
 
-Indexing is the reason a system can find one useful record among millions without scanning everything. It powers database queries, product search, log analytics, autocomplete, recommendations, and many other latency-sensitive backend features.
+The current term “indexing” covers two related but different system-design problems:
 
----
+1. **database indexes** that accelerate access to authoritative transactional data;
+2. **search indexes** that build a derived retrieval structure for text/relevance/discovery.
 
-## Core Concepts
-
-### 1. What is an index?
-
-An index is an additional data structure that helps a system locate data faster.
-
-Without an index, a database may perform a full scan:
-
-```text
-Check row 1 → Check row 2 → Check row 3 → ... → Check row N
-```
-
-With an index, the system first looks up a smaller, organized structure and jumps directly to the required records.
-
-```text
-Index lookup → Record location → Fetch result
-```
-
-The trade-off is simple:
-
-* **Faster reads**
-* **More storage**
-* **Slower writes**, because indexes must also be updated
-
-### 2. Primary and secondary indexes
-
-* **Primary index:** Built on the primary key or the main ordering key of the data.
-* **Secondary index:** Built on another field used frequently in queries, such as `email`, `status`, or `created_at`.
-
-A table usually has one primary index but may have several secondary indexes.
-
-### 3. Clustered and non-clustered indexes
-
-* **Clustered index:** Determines how the actual rows are physically organized. A table generally has only one.
-* **Non-clustered index:** Stores indexed values separately and points to the original rows.
-
-### 4. Composite indexes
-
-A composite index includes multiple fields.
-
-```sql
-CREATE INDEX idx_orders_user_status
-ON orders(user_id, status);
-```
-
-This index is useful for queries filtering by:
-
-```sql
-WHERE user_id = ?
-```
-
-or:
-
-```sql
-WHERE user_id = ? AND status = ?
-```
-
-It may not efficiently serve queries that filter only by `status`, because index column order matters.
-
-### 5. Covering indexes
-
-A covering index contains every field required by a query, allowing the database to return the result without reading the main table.
-
-```sql
-CREATE INDEX idx_orders_covering
-ON orders(user_id, status, total_amount);
-```
-
-For a query that selects only these fields, the index itself may contain all the required data.
-
-### 6. Selectivity and cardinality
-
-* **Cardinality:** Number of distinct values in a field.
-* **Selectivity:** How effectively a field narrows the result set.
-
-An index on `email` is usually highly selective. An index on a boolean field such as `is_active` may provide limited value because many rows share the same value.
-
-### 7. Common index data structures
-
-* **B-Tree / B+ Tree:** Excellent for equality lookups, sorting, and range queries.
-* **Hash index:** Excellent for exact-match lookups but not range queries.
-* **Inverted index:** Maps terms to documents; commonly used by search engines.
-* **Bitmap index:** Useful for low-cardinality analytical data.
-* **LSM Tree:** Optimized for heavy write workloads by buffering and merging sorted data over time.
-
-### 8. Index consistency
-
-An index may be updated:
-
-* **Synchronously:** The write succeeds only after both the source data and index are updated.
-* **Asynchronously:** The source write succeeds first, and the index catches up later.
-
-Synchronous indexing provides stronger consistency. Asynchronous indexing improves write throughput but can temporarily return stale results.
+Do not mix their consistency and operational models.
 
 ---
 
-## Architecture
+## Interview TL;DR
 
-A scalable indexing platform usually separates the **source of truth** from the **searchable index**.
+1. Indexes trade **storage + write amplification + memory** for faster selected reads.
+2. Build indexes from actual predicates, joins, sort order, and result shape.
+3. Selectivity matters, but low-selectivity fields can still be useful in composite/partial/bitmap-style contexts depending on the engine.
+4. Composite index order matters, but validate with the database optimizer rather than memorizing one universal rule.
+5. Covering/index-only access is engine-specific and may still require base-table visibility checks.
+6. Every extra index increases insert/update/delete cost and backup/storage footprint.
+7. Search indexes are usually **derived stores**, commonly updated asynchronously from a source of truth.
+8. Distributed search correctness requires versions, idempotency, delete handling, replay, and reconciliation.
+9. A shard key and an index are related concepts but not equivalent.
+10. Index design is also a concurrency issue because locking statements may lock the ranges they scan.
+
+---
+
+# Part I — Database Indexes
+
+## 1. Why an Index Works
+
+Without useful access structure:
+
+```text
+scan many rows/pages
+```
+
+With an index:
+
+```text
+navigate ordered/search structure
+      ↓
+locate matching tuple/document
+```
+
+Cost moved from read time into:
+
+- storage
+- writes
+- maintenance
+- cache footprint
+
+---
+
+# 2. B-tree / B+ Tree
+
+General-purpose structure for:
+
+- equality
+- range
+- ordering
+- prefix-oriented composite access
+
+Most relational OLTP indexing discussions start here.
+
+---
+
+# 3. Composite Indexes
+
+Example:
+
+```sql
+CREATE INDEX idx_orders_tenant_status_created
+ON orders(tenant_id, status, created_at DESC);
+```
+
+Design from query:
+
+```sql
+WHERE tenant_id = ?
+  AND status = ?
+ORDER BY created_at DESC
+```
+
+Consider:
+
+- equality predicates
+- range predicate
+- sort
+- join
+- page/row selectivity
+- returned columns
+- update frequency
+
+Do not create one enormous composite index for every possible query.
+
+---
+
+# 4. Covering / Included Columns
+
+Some engines let an index contain non-key payload columns.
+
+PostgreSQL:
+
+```sql
+CREATE INDEX idx_order_summary
+ON orders(customer_id, created_at DESC)
+INCLUDE (status, total_amount);
+```
+
+A covering index can reduce base-table access.
+
+But “covered” does not always mean “zero table access”; visibility/storage-engine rules differ.
+
+---
+
+# 5. Partial / Filtered Index
+
+Index only the subset the query repeatedly needs.
+
+```sql
+CREATE INDEX idx_pending_orders
+ON orders(created_at)
+WHERE status = 'pending';
+```
+
+Benefits:
+
+- smaller index
+- less write amplification
+- better cache locality
+
+Works only when the query predicate matches the index condition.
+
+---
+
+# 6. Expression / Functional Index
+
+```sql
+CREATE UNIQUE INDEX idx_users_lower_email
+ON users(lower(email));
+```
+
+Useful when an expression is a stable recurring access path.
+
+---
+
+# 7. Specialized PostgreSQL Examples
+
+## GIN
+
+Useful for composite values such as:
+
+- JSONB keys/values
+- arrays
+- full-text data structures
+
+## GiST/SP-GiST
+
+Useful for supported extensible geometric/range/search structures.
+
+## BRIN
+
+Useful for huge physically correlated tables such as append-time data.
+
+BRIN is small because it summarizes block ranges rather than indexing every row precisely.
+
+---
+
+# 8. InnoDB Clustered vs Secondary Indexes
+
+In InnoDB:
+
+- table rows live in the clustered primary-key structure
+- secondary indexes include the primary-key value
+
+Therefore:
+
+```text
+large primary key
+  ↓
+larger every secondary index
+```
+
+Index design is tied to primary-key design.
+
+---
+
+# 9. Selectivity
+
+A highly selective predicate usually narrows the data substantially.
+
+Example:
+
+```text
+email = unique address
+```
+
+A boolean may be low selectivity.
+
+But do not use:
+
+> “Never index booleans.”
+
+A partial index on a rare boolean state can be excellent:
+
+```text
+WHERE processed = false
+```
+
+Index value depends on **data distribution + query pattern**, not a field-type slogan.
+
+---
+
+# 10. Index and ORDER BY
+
+An index can sometimes produce data in needed order and avoid a large sort.
+
+Useful pattern:
+
+```sql
+WHERE customer_id = ?
+ORDER BY created_at DESC
+LIMIT 20
+```
+
+Index:
+
+```text
+(customer_id, created_at DESC)
+```
+
+This is especially valuable for keyset pagination.
+
+---
+
+# 11. Write Amplification
+
+Each write may update:
+
+```text
+table
++
+primary index
++
+secondary index A
++
+secondary index B
++
+secondary index C
+```
+
+Costs:
+
+- CPU
+- I/O
+- WAL/redo
+- cache churn
+- replication volume
+- storage
+
+Over-indexing can make a read-optimized schema fail under write load.
+
+---
+
+# 12. Index Maintenance
+
+Indexes can become:
+
+- unused
+- redundant
+- bloated
+- poorly selective as data changes
+- mismatched to new query patterns
+
+Review:
+
+- index usage
+- size
+- write cost
+- planner selection
+- duplicate prefixes
+- data skew
+
+---
+
+# 13. Lock Footprint
+
+Indexes affect concurrency.
+
+A locking query that scans too broad a range can lock more records/ranges than intended.
+
+So a missing index can cause:
+
+```text
+slow query
++
+larger lock footprint
++
+more contention
+```
+
+This is especially important in InnoDB next-key/range locking.
+
+---
+
+# 14. Explain Plans
+
+Validate indexes with the engine.
+
+Look for:
+
+- scan type
+- estimated vs actual rows
+- rows examined
+- sort
+- temp/spill
+- loop count
+- heap/table fetch
+- filter selectivity
+
+Do not “force index” before understanding why the optimizer rejected it.
+
+---
+
+# Part II — Search Indexes
+
+A dedicated search index is different.
+
+Use one when you need:
+
+- tokenization
+- relevance
+- fuzzy search
+- faceting
+- autocomplete
+- text analysis
+- search-specific ranking
+
+The transactional DB typically remains authoritative.
+
+---
+
+# 15. Derived Search Architecture
 
 ```mermaid
 flowchart LR
-    C[Client] --> API[API Service]
-
-    API --> DB[(Primary Database)]
-    DB --> CDC[Change Data Capture]
-    CDC --> Q[Event Queue]
-    Q --> IW[Index Workers]
-    IW --> IS[(Index Shards)]
-
-    C --> QS[Query Service]
-    QS --> Cache[(Query Cache)]
-    QS --> R[Query Router]
-    R --> IS
-
-    IS --> MR[Merge and Rank]
-    MR --> QS
-    QS --> C
-
-    DLQ[(Dead-Letter Queue)] --- IW
-    MON[Monitoring and Alerts] --- DB
-    MON --- Q
-    MON --- IW
-    MON --- IS
+    API[Write API] --> DB[(Source DB)]
+    DB --> CDC[CDC / Outbox]
+    CDC --> Q[Durable Log / Queue]
+    Q --> W[Index Workers]
+    W --> IDX[(Search Index)]
+    Client --> QS[Query Service]
+    QS --> IDX
 ```
 
-### Main components
+This is normally eventually consistent.
 
-#### 1. Primary database
+---
 
-Stores the authoritative version of each record. The index should normally be treated as a derived data store, not the source of truth.
+# 16. Correctness of the Index Pipeline
 
-#### 2. Change Data Capture
+You need:
 
-Change Data Capture, or CDC, publishes inserts, updates, and deletes from the database without requiring every application service to update the index directly.
+- durable source events
+- idempotent consumers
+- versioned documents
+- delete/tombstone handling
+- out-of-order protection
+- retry/DLQ
+- replay
+- periodic reconciliation
 
-#### 3. Event queue
-
-A durable queue absorbs traffic spikes, decouples the database from index workers, and enables failed events to be retried.
-
-Typical event:
+Example event:
 
 ```json
 {
-  "event_id": "evt_9821",
-  "operation": "UPDATE",
-  "entity_id": "product_483",
-  "version": 17,
-  "timestamp": "2026-08-01T10:15:00Z"
+  "entityId": "product-10",
+  "version": 42,
+  "operation": "UPDATE"
 }
 ```
 
-#### 4. Index workers
-
-Workers transform source records into index documents. They may normalize text, tokenize fields, remove stop words, calculate ranking signals, or enrich records with related data.
-
-Workers should be **idempotent**, meaning processing the same event more than once produces the same final state.
-
-#### 5. Index shards
-
-Large indexes are partitioned across multiple machines. A shard owns a subset of the indexed data.
-
-Common sharding strategies:
-
-* Hash by document ID
-* Partition by tenant
-* Partition by time
-* Partition by geography
-* Partition by business category
-
-#### 6. Query router
-
-The router decides which shards should receive a query. Good routing reduces unnecessary fan-out and lowers latency.
-
-#### 7. Merge and rank layer
-
-When several shards return matches, the system combines them, removes duplicates, applies ranking rules, and returns the best results.
-
-#### 8. Cache
-
-Frequently repeated queries can be cached. Cache keys should include every parameter that affects the result, including filters, sorting, pagination, tenant, and index version.
-
-#### 9. Reindexing pipeline
-
-Indexes occasionally need to be rebuilt because of schema changes, ranking changes, corruption, or a new tokenizer.
-
-A safe reindexing process is:
-
-```text
-Create new index → Backfill data → Validate → Dual-write → Switch alias → Retire old index
-```
-
-This approach avoids long downtime and makes rollback easier.
-
-### Write path
-
-```text
-1. Client sends a write request
-2. API updates the primary database
-3. CDC produces a change event
-4. Event is stored in the queue
-5. An index worker consumes the event
-6. The correct index shard is updated
-7. Metrics record indexing delay and failures
-```
-
-### Read path
-
-```text
-1. Client sends a search or lookup request
-2. Query service validates and normalizes the request
-3. Cache is checked
-4. Query router selects relevant shards
-5. Shards return local matches
-6. Results are merged, ranked, and paginated
-7. Response is returned and optionally cached
-```
-
-### Reliability considerations
-
-A production indexing architecture should handle:
-
-* Duplicate events
-* Events arriving out of order
-* Partial shard failures
-* Poison messages
-* Queue backlog
-* Reindexing failures
-* Source and index schema mismatch
-* Hot shards
-* Stale or missing documents
-
-Useful controls include event versions, retries with backoff, dead-letter queues, reconciliation jobs, replication, and index health checks.
+Reject version 41 if version 42 is already indexed.
 
 ---
 
-## Comparison: Database Index vs Search Index
+# 17. Reindexing
 
-| Area            | Database B-Tree Index                         | Search Inverted Index                                         |
-| --------------- | --------------------------------------------- | ------------------------------------------------------------- |
-| Best for        | Structured queries and transactions           | Full-text search and relevance ranking                        |
-| Typical queries | Equality, ranges, sorting, joins              | Keywords, phrases, fuzzy matches, filters                     |
-| Data model      | Rows and columns                              | Documents and terms                                           |
-| Consistency     | Usually strongly consistent with the database | Often eventually consistent                                   |
-| Ranking         | Usually limited to explicit sorting           | Supports relevance scoring                                    |
-| Write behavior  | Updated as part of database writes            | Commonly updated through an asynchronous pipeline             |
-| Example         | Find orders for a user in a date range        | Find products matching “wireless noise cancelling headphones” |
-
-**Rule of thumb:** Use database indexes for transactional access patterns. Use a dedicated search index when users need text search, relevance, typo tolerance, faceting, or large-scale discovery.
-
----
-
-## Real-World Example: E-Commerce Product Search
-
-Imagine an online store with 50 million products. Users can search by keywords and filter by brand, price, rating, availability, and delivery location.
-
-### Indexed product document
-
-```json
-{
-  "product_id": "p_10482",
-  "title": "Wireless Noise Cancelling Headphones",
-  "description": "Over-ear Bluetooth headphones with 30-hour battery life",
-  "brand": "Acme Audio",
-  "category": "electronics",
-  "price": 129.99,
-  "rating": 4.6,
-  "in_stock": true,
-  "available_regions": ["IN", "SG", "AE"],
-  "popularity_score": 87.4,
-  "updated_at": "2026-08-01T10:15:00Z"
-}
-```
-
-### How the query is processed
-
-User request:
+Safe pattern:
 
 ```text
-"wireless headphones" under ₹15,000, rating above 4, available in India
+create index v2
+      ↓
+backfill
+      ↓
+catch up incremental events
+      ↓
+validate
+      ↓
+switch alias/router
+      ↓
+retain v1 for rollback
 ```
 
-The search system:
+Do not mutate an incompatible index schema in place without a rollback plan.
 
-1. Tokenizes `wireless headphones`.
-2. Looks up matching documents in the inverted index.
-3. Applies filters for price, rating, stock, and region.
-4. Calculates a score using text relevance, popularity, rating, and freshness.
-5. Returns the top results.
+---
 
-A simplified ranking formula could be:
+# 18. Sharding the Search Index
+
+Choose a routing/partition strategy based on:
+
+- document count
+- query pattern
+- tenant isolation
+- hot categories
+- write distribution
+
+Scatter/gather across every shard increases tail latency.
+
+A distributed index should support targeted routing where possible.
+
+---
+
+# 19. Pagination
+
+Deep offset:
 
 ```text
-final_score =
-    0.50 × text_relevance
-  + 0.20 × popularity
-  + 0.20 × rating
-  + 0.10 × freshness
+skip 1,000,000
+return next 20
 ```
 
-### Handling updates
+can be expensive and unstable under change.
 
-When a product price or stock value changes:
-
-```text
-Product Service → Primary Database → CDC → Queue → Index Worker → Search Index
-```
-
-The product page can read critical price and stock values from the primary system, while search results use the index for fast discovery. This prevents a slightly stale search index from becoming the final authority for checkout decisions.
-
-### Scaling the system
-
-As traffic grows:
-
-* Shard products by product ID or category.
-* Replicate shards for higher read throughput.
-* Cache popular queries.
-* Route category-specific searches only to relevant shards.
-* Track queue lag to measure index freshness.
-* Move expensive ranking features to offline or asynchronous pipelines.
-* Use aliases to deploy new index versions without downtime.
+Prefer search-after/keyset/cursor techniques for deep continuous navigation.
 
 ---
 
-## Best Practices
+# 20. Source of Truth
 
-1. **Design indexes from real query patterns.** Do not create indexes only because a field looks important.
-2. **Keep the source of truth separate.** Treat search indexes as rebuildable derived data.
-3. **Measure index freshness.** Track the delay between a source update and its searchable version.
-4. **Use idempotent consumers.** Duplicate delivery is normal in distributed systems.
-5. **Version events and documents.** Reject stale updates that arrive after newer updates.
-6. **Limit over-indexing.** Every additional index increases storage, write cost, and operational complexity.
-7. **Plan reindexing from day one.** Schema and ranking logic will change.
-8. **Use cursor-based pagination for deep result sets.** Large offset-based pagination can be slow and inconsistent.
-9. **Monitor shard balance.** Watch document count, storage, query rate, and CPU per shard.
-10. **Validate with production-like data.** Index behavior changes significantly with realistic cardinality and skew.
-11. **Use query explain plans.** Confirm that the expected index is actually being used.
-12. **Protect the query layer.** Add timeouts, result limits, rate limits, and safeguards against expensive queries.
+Never let a slightly stale search result become the final authority for:
+
+- price
+- payment
+- authorization
+- inventory allocation
+
+Search can discover a product. Checkout should revalidate authoritative state.
 
 ---
 
-## Common Mistakes
+# 21. Metrics
 
-### 1. Adding too many indexes
+Database index:
 
-More indexes do not automatically mean better performance. They increase write amplification, disk usage, memory usage, and maintenance cost.
+- index usage
+- size
+- pages/rows scanned
+- write latency
+- cache hit
+- plan regression
 
-### 2. Ignoring composite index order
+Search index:
 
-An index on `(user_id, status)` is not equivalent to `(status, user_id)`. Order should match the most important query prefixes.
-
-### 3. Indexing low-selectivity fields alone
-
-An isolated index on fields such as `is_active` or `gender` may not reduce the search space enough to be useful.
-
-### 4. Using the search index as the source of truth
-
-Search systems may be eventually consistent. Critical operations such as payment, inventory reservation, and authorization should validate against authoritative services.
-
-### 5. Forgetting delete events
-
-A pipeline that handles inserts and updates but misses deletes will slowly accumulate incorrect documents.
-
-### 6. Processing events without version checks
-
-Out-of-order events can overwrite fresh data with stale data unless document versions are compared.
-
-### 7. Reindexing in place
-
-Changing a live index directly can create partial migrations, inconsistent mappings, and difficult rollbacks. Build a new version and switch traffic through an alias.
-
-### 8. Allowing unlimited query fan-out
-
-Sending every request to every shard increases tail latency and can create a distributed denial-of-service problem inside the system.
-
-### 9. Monitoring only average latency
-
-Average latency can hide slow shards. Track percentiles such as P95 and P99, along with timeout and partial-failure rates.
-
-### 10. Skipping reconciliation
-
-Even reliable pipelines eventually experience missed, duplicated, or corrupted events. Periodic comparison with the source database helps detect and repair drift.
+- indexing lag
+- queue depth
+- stale-version reject count
+- failed events
+- shard balance
+- search p95/p99
+- partial-shard failures
+- reindex progress
+- source/index drift
 
 ---
 
-## Interview Questions with Short Answers
+# 22. Common Mistakes
 
-### 1. Why do indexes improve reads but slow down writes?
+### Index every field
 
-Indexes provide a smaller, organized lookup structure for reads. During writes, the system must update both the original data and every affected index.
+Write amplification grows without guaranteed read benefit.
 
-### 2. When would you use an inverted index instead of a B-Tree?
+### “Low cardinality means never index”
 
-Use an inverted index for full-text search, relevance ranking, phrase matching, and term-based retrieval. Use a B-Tree for structured equality, sorting, and range queries.
+Too absolute.
 
-### 3. How do you prevent stale events from overwriting fresh index data?
+### Treat search index as source of truth
 
-Include a monotonically increasing version or source timestamp with each event, and apply the update only when it is newer than the indexed version.
+Wrong consistency model for critical decisions.
 
-### 4. How would you rebuild a large index without downtime?
+### Ignore deletes
 
-Create a new version, backfill it, validate it, temporarily dual-write, switch a logical alias to the new index, and keep the old version available for rollback.
+Stale documents accumulate.
 
-### 5. What metrics would you monitor in an indexing system?
+### Ignore version ordering
 
-Monitor indexing lag, queue depth, event failure rate, document count, shard balance, query latency percentiles, cache hit rate, stale-result rate, and reindexing progress.
+Old events overwrite new documents.
+
+### Reindex in place
+
+Risky migration and rollback.
+
+### Unlimited shard fan-out
+
+Tail latency grows with slowest shard.
 
 ---
 
-## Key Takeaways
+# Interview Questions
 
-1. **Indexes exchange storage and write cost for faster reads.** Every index should support a real access pattern.
-2. **At scale, indexing is a distributed data pipeline.** Correctness depends on durable events, idempotency, versioning, sharding, and reconciliation.
-3. **The best index is not only fast—it is rebuildable, observable, and safe to evolve.**
+## Database index vs search index?
+
+A DB index is part of transactional query execution. A search index is commonly a derived retrieval system optimized for text/relevance/discovery.
+
+## Why can an index hurt writes?
+
+Every affected index must be maintained and replicated/logged.
+
+## What is a partial index useful for?
+
+A frequently queried small subset of a larger table.
+
+## Why can a missing index cause contention?
+
+Locking statements may scan and lock broader ranges.
+
+## How do you safely rebuild a search index?
+
+Versioned new index, backfill, catch up changes, validate, switch alias, retain rollback.
+
+---
+
+## References
+
+- PostgreSQL indexes: https://www.postgresql.org/docs/current/indexes.html
+- PostgreSQL GIN: https://www.postgresql.org/docs/current/gin.html
+- MySQL InnoDB indexes: https://dev.mysql.com/doc/refman/8.4/en/innodb-index-types.html

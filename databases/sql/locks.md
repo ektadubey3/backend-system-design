@@ -1,1409 +1,583 @@
-# Locks
+# Locks and Coordination
 
-Locks control access to shared resources when multiple requests, threads, processes, or services attempt to modify the same data simultaneously.
+“Use a lock” is incomplete system-design reasoning.
 
-They are commonly used for:
+First identify **where the shared state lives** and choose the narrowest concurrency mechanism that the authoritative resource can enforce.
 
-* Inventory updates
-* Account balances
-* Seat reservations
-* Job scheduling
-* Leader election
-* File processing
-* Duplicate-request prevention
+There are several different things engineers call locks:
 
-The goal is not to lock everything. The goal is to protect critical operations while preserving as much concurrency as possible.
+- in-process mutexes
+- database row/table locks
+- database advisory locks
+- optimistic version checks
+- distributed leases
+- coordination-service locks
 
-⭐ Star this repository for more practical backend and system-design guides.
-
----
-
-## Core Concepts
-
-### 1. What Is a Lock?
-
-A lock gives one or more operations controlled access to a shared resource.
-
-Consider the final product in stock:
-
-```text
-Available stock = 1
-
-Request A reads stock = 1
-Request B reads stock = 1
-
-Request A reduces stock to 0
-Request B reduces stock to 0
-```
-
-Both requests may create an order even though only one item exists.
-
-A lock coordinates the requests:
-
-```text
-Request A acquires lock
-Request B waits
-
-Request A checks stock
-Request A reduces stock
-Request A commits
-Request A releases lock
-
-Request B acquires lock
-Request B sees stock = 0
-Request B rejects purchase
-```
+They do not provide interchangeable guarantees.
 
 ---
 
-### 2. Critical Section
+## Interview TL;DR
 
-A critical section is the part of the code that accesses shared mutable data.
-
-```text
-Acquire lock
-    ↓
-Read shared state
-    ↓
-Validate business rule
-    ↓
-Update shared state
-    ↓
-Release lock
-```
-
-Only the smallest necessary section should be protected.
-
-Holding a lock during unrelated work reduces throughput and increases waiting time.
+1. Prefer an invariant/atomic operation at the authoritative datastore over an external lock when possible.
+2. Database lock behavior is vendor-specific.
+3. In MVCC databases, ordinary reads do not necessarily take blocking shared row locks.
+4. PostgreSQL row locks block writers/lockers on the same rows but ordinary `SELECT` can still read.
+5. InnoDB locking statements can lock every scanned index record/range; index design therefore affects contention.
+6. Do not claim that all databases escalate many row locks into a table lock; lock escalation is product-specific.
+7. Deadlocks are expected; use consistent ordering, short transactions, good indexes, and retry.
+8. Lock timeout and deadlock are different failure modes.
+9. A distributed lease can expire while the old worker is still executing.
+10. Use fencing/version tokens when stale workers could corrupt an external resource.
+11. Locks and idempotency solve different problems.
+12. Use `SKIP LOCKED` for queue-like work distribution only when intentionally skipping locked rows is acceptable.
 
 ---
 
-### 3. Shared Lock
+# 1. Choose the Concurrency Primitive
 
-A shared lock allows multiple transactions to read the same resource.
+For each invariant, consider:
 
 ```text
-Reader A ─┐
-Reader B ─┼── Shared access
-Reader C ─┘
+constraint
+  ↓
+atomic conditional update
+  ↓
+optimistic version
+  ↓
+database row/range lock
+  ↓
+Serializable transaction
+  ↓
+distributed coordination
 ```
 
-A conflicting writer may have to wait until the shared locks are released.
-
-Shared locks are useful when:
-
-* Multiple readers need stable data
-* Writes must not occur during the read
-* The database uses lock-based isolation
+Do not start with Redis/ZooKeeper if the SQL row itself can enforce the rule.
 
 ---
 
-### 4. Exclusive Lock
+# 2. In-Process Mutex
 
-An exclusive lock allows one transaction to modify a resource.
+Useful when:
 
 ```text
-Writer A → Exclusive access
-Writer B → Wait
-Reader C → May wait, depending on the database
+one process
+one memory space
+one shared object
 ```
+
+It does not coordinate:
+
+- another process
+- another pod
+- another region
+
+A local mutex is insufficient for horizontally scaled service instances.
+
+---
+
+# 3. PostgreSQL Row Locks
 
 Example:
 
 ```sql
-SELECT available_stock
+SELECT *
 FROM inventory
-WHERE product_id = 301
+WHERE product_id = ?
 FOR UPDATE;
 ```
 
-`FOR UPDATE` usually acquires a row-level lock for the selected record.
+PostgreSQL row-level locks prevent conflicting writers/lockers on the same row until transaction end.
+
+Important:
+
+> Ordinary reads are not blocked by row locks in the way a simplistic “exclusive lock blocks readers” explanation suggests.
+
+MVCC readers can read the appropriate version.
 
 ---
 
-### 5. Row-Level Lock
+# 4. PostgreSQL Row Lock Modes
 
-A row-level lock protects individual rows.
+Common modes:
+
+- `FOR UPDATE`
+- `FOR NO KEY UPDATE`
+- `FOR SHARE`
+- `FOR KEY SHARE`
+
+Use the weakest mode that protects the operation.
+
+Do not memorize the conflict matrix for interviews unless asked; understand that key-changing updates require stronger exclusion than ordinary non-key updates.
+
+---
+
+# 5. PostgreSQL Table Locks
+
+DDL and maintenance can acquire table-level modes.
+
+Some operations can strongly block normal workload.
+
+Example classes:
+
+```text
+CREATE INDEX          → stronger table coordination
+CREATE INDEX CONCURRENTLY → reduced blocking, extra work/constraints
+ALTER TABLE variants  → lock depends on operation
+VACUUM FULL           → strong exclusive behavior
+```
+
+Schema migration design is therefore a system-design concern.
+
+---
+
+# 6. PostgreSQL Advisory Locks
+
+Advisory locks use application-defined lock IDs.
+
+Useful for:
+
+- one logical tenant job
+- migration coordination
+- scheduler singleton
+- logical resources without a natural row
+
+PostgreSQL offers:
+
+- session-level advisory locks
+- transaction-level advisory locks
+
+Session-level locks survive transaction rollback until explicitly released/session end.
+
+Transaction-level advisory locks release with transaction end.
+
+Use the right lifecycle.
+
+---
+
+# 7. InnoDB Record and Range Locks
+
+InnoDB locking reads and writes operate through indexes.
+
+A critical detail:
+
+> A locking statement generally locks the index records/ranges it scans, not only rows that the application conceptually thinks are “the answer.”
+
+So:
+
+```sql
+UPDATE reservations
+SET status = 'HELD'
+WHERE room_id = ?
+  AND starts_at >= ?
+  AND starts_at < ?;
+```
+
+with a poor index can scan and lock a broader region.
+
+Indexing is therefore also concurrency design.
+
+---
+
+# 8. Gap and Next-Key Locks
+
+InnoDB can use next-key locking:
+
+```text
+record lock
++
+gap before record
+```
+
+This helps protect ranges from conflicting inserts under relevant isolation/access patterns.
+
+Trade-off:
+
+- stronger range protection
+- more blocking
+
+Do not describe MySQL locking using only “row lock vs table lock.”
+
+---
+
+# 9. Lock Escalation Is Not Universal
+
+Some database systems can escalate many fine-grained locks into coarser locks.
+
+Do **not** teach:
+
+```text
+many row locks automatically become table lock
+```
+
+as a universal database rule.
+
+For example, PostgreSQL does not use that generic automatic row-to-table escalation model.
+
+Always name the database when discussing escalation.
+
+---
+
+# 10. Pessimistic Locking
+
+Use when:
+
+- conflict probability is high
+- waiting is cheaper than repeated failed work
+- one transaction must inspect mutable state then change it
+
+Example:
 
 ```sql
 BEGIN;
 
 SELECT balance
 FROM accounts
-WHERE id = 101
+WHERE id = ?
 FOR UPDATE;
 
-UPDATE accounts
-SET balance = balance - 500
-WHERE id = 101;
+-- validate + update
 
 COMMIT;
 ```
 
-Advantages:
+Cost:
 
-* High concurrency
-* Unrelated rows remain available
-* Suitable for targeted updates
-
-Trade-offs:
-
-* More locks to manage
-* Deadlocks are still possible
-* Hot rows can become bottlenecks
+- queueing
+- deadlocks
+- timeout
+- connection occupancy
+- tail latency
 
 ---
 
-### 6. Table-Level Lock
+# 11. Optimistic Concurrency
 
-A table-level lock protects an entire table.
+Version check:
 
 ```sql
-LOCK TABLE inventory IN EXCLUSIVE MODE;
-```
-
-Advantages:
-
-* Simple coordination
-* Lower lock-management overhead
-* Useful for certain maintenance operations
-
-Disadvantages:
-
-* Blocks unrelated operations
-* Reduces concurrency
-* Can create high latency under traffic
-
-Table locks should be used carefully in request-driven systems.
-
----
-
-### 7. Page-Level Lock
-
-A page-level lock protects a group of rows stored on the same database page.
-
-It provides a middle ground between row-level and table-level locking.
-
-```text
-Row lock   → Small protected area, more lock objects
-Page lock  → Medium protected area
-Table lock → Large protected area, fewer lock objects
-```
-
-The database may choose the lock granularity automatically.
-
----
-
-### 8. Intent Locks
-
-Intent locks tell the database that a transaction plans to lock records at a lower level.
-
-For example:
-
-```text
-Intent exclusive lock on table
-            ↓
-Exclusive lock on selected rows
-```
-
-They help the database coordinate row-level and table-level locks efficiently.
-
-Application developers rarely manage intent locks directly, but they may appear in execution and lock diagnostics.
-
----
-
-### 9. Pessimistic Locking
-
-Pessimistic locking assumes conflicts are likely.
-
-The resource is locked before it is modified:
-
-```sql
-BEGIN;
-
-SELECT available_stock
-FROM inventory
-WHERE product_id = 301
-FOR UPDATE;
-
-UPDATE inventory
-SET available_stock = available_stock - 1
-WHERE product_id = 301;
-
-COMMIT;
-```
-
-Best suited for:
-
-* High-contention resources
-* Financial balances
-* Limited inventory
-* Seat reservations
-* Critical state transitions
-
-Trade-offs:
-
-* Requests may wait
-* Deadlocks may occur
-* Long transactions reduce throughput
-* Failed clients may hold resources until timeout
-
----
-
-### 10. Optimistic Locking
-
-Optimistic locking assumes conflicts are uncommon.
-
-Instead of blocking other operations, it detects whether the record changed.
-
-Example table:
-
-```sql
-CREATE TABLE products (
-    id BIGINT PRIMARY KEY,
-    available_stock INT NOT NULL,
-    version BIGINT NOT NULL DEFAULT 0
-);
-```
-
-Update:
-
-```sql
-UPDATE products
-SET available_stock = available_stock - 1,
+UPDATE documents
+SET body = ?,
     version = version + 1
-WHERE id = 301
-  AND version = 12
-  AND available_stock > 0;
+WHERE id = ?
+  AND version = ?;
 ```
 
 Result:
 
 ```text
-1 row updated → Success
-0 rows updated → Conflict or unavailable stock
+1 row → success
+0 rows → conflict
 ```
 
-Best suited for:
+Good when conflicts are uncommon.
 
-* Read-heavy workloads
-* Low-contention data
-* User-profile editing
-* Content-management systems
-* APIs where waiting is undesirable
+Under high contention:
+
+```text
+many optimistic retries
+```
+
+can waste more work than a queue/lock/serialized owner.
 
 ---
 
-### 11. Lock Timeout
+# 12. Atomic Update Instead of Lock
 
-A lock timeout limits how long an operation waits for a lock.
-
-```text
-Request waits for lock
-        ↓
-Timeout reached
-        ↓
-Transaction fails
-```
-
-Timeouts prevent blocked requests from consuming database connections indefinitely.
-
-The application should return a controlled error or retry when appropriate.
-
----
-
-### 12. Deadlock
-
-A deadlock occurs when transactions wait for each other.
-
-```text
-Transaction A locks Row 1
-Transaction B locks Row 2
-
-Transaction A requests Row 2
-Transaction B requests Row 1
-```
-
-Neither can continue.
-
-Most databases detect the cycle and abort one transaction.
-
-Applications should treat deadlock errors as retryable when the complete operation is safe to repeat.
-
----
-
-### 13. Lock Ordering
-
-Consistent lock ordering reduces deadlocks.
-
-For an account transfer:
-
-```text
-Always lock the account with the smaller ID first.
-```
-
-Example:
+Counter:
 
 ```sql
-SELECT id, balance
-FROM accounts
-WHERE id IN (101, 202)
-ORDER BY id
-FOR UPDATE;
+UPDATE counters
+SET value = value + 1
+WHERE id = ?;
 ```
 
-Every transfer follows the same order, even when money moves in the opposite direction.
+Inventory:
 
----
+```sql
+UPDATE inventory
+SET stock = stock - 1
+WHERE id = ?
+  AND stock > 0;
+```
 
-### 14. Lock Escalation
-
-Lock escalation occurs when a database replaces many smaller locks with a larger lock.
+Often better than:
 
 ```text
-Thousands of row locks
-          ↓
-One table-level lock
+SELECT FOR UPDATE
+then update
 ```
 
-This reduces lock-management overhead but may unexpectedly block unrelated transactions.
-
-Large updates should often be processed in bounded batches.
+when no intermediate read-dependent logic is required.
 
 ---
 
-### 15. Advisory Locks
-
-Advisory locks are application-controlled locks provided by some databases.
-
-They can protect logical resources that are not represented by one specific row.
-
-Examples:
-
-```text
-Generate monthly invoice for tenant 101
-Run one migration task
-Process one customer export
-```
-
-The application must follow the locking convention consistently because the database may not enforce it automatically.
-
----
-
-### 16. Distributed Locks
-
-A distributed lock coordinates processes running on different machines.
-
-```text
-Service Instance A
-Service Instance B
-Service Instance C
-         ↓
-Shared Lock Service
-```
-
-Common use cases:
-
-* Running one scheduled job
-* Processing one file
-* Leader election
-* Preventing duplicate background work
-* Coordinating access to an external resource
-
-A distributed lock normally requires:
-
-* Unique owner identifier
-* Expiration time
-* Safe release
-* Failure handling
-* Fencing token or version
-
----
-
-### 17. Lease
-
-A lease is a lock with an expiration time.
-
-```text
-Acquire lock for 30 seconds
-          ↓
-Complete or renew work
-          ↓
-Lock expires automatically
-```
-
-Expiration prevents a crashed process from holding a lock forever.
-
-However, the process may continue working after its lease expires. This is why expiration alone is not enough for every critical workflow.
-
----
-
-### 18. Fencing Token
-
-A fencing token is a monotonically increasing number issued whenever a lock is acquired.
-
-```text
-Worker A acquires lock → Token 41
-Worker A pauses
-
-Lease expires
-
-Worker B acquires lock → Token 42
-Worker B updates resource
-
-Worker A resumes with Token 41
-Resource rejects stale token
-```
-
-The protected system accepts only the newest token.
-
-Fencing tokens protect against a previous lock owner continuing work after losing ownership.
-
----
-
-### 19. Reentrant Lock
-
-A reentrant lock allows the same owner to acquire a lock multiple times.
-
-```text
-Function A acquires lock
-Function A calls Function B
-Function B acquires the same lock
-```
-
-The lock is released only after the matching number of releases.
-
-Reentrant locks are common inside applications, but their ownership rules must be clear.
-
----
-
-### 20. Read-Write Lock
-
-A read-write lock supports:
-
-* Multiple concurrent readers
-* One exclusive writer
-
-```text
-Readers can run together
-Writer requires exclusive access
-```
-
-It is useful when reads are frequent and writes are rare.
-
-A poorly configured read-write lock may cause writer starvation when readers continuously acquire access.
-
----
-
-## Architecture
-
-A reliable locking architecture uses the database for transactional row protection and a dedicated coordination mechanism for cross-instance operations.
-
-```mermaid
-flowchart LR
-    Client[Client Application]
-
-    subgraph Application_Layer[Application Layer]
-        Gateway[API Gateway]
-        Service[Backend Service]
-        Validator[Request Validator]
-        Idempotency[(Idempotency Store)]
-    end
-
-    subgraph Coordination_Layer[Coordination Layer]
-        LockManager[Lock Manager]
-        RetryHandler[Retry Handler]
-        DistLock[(Distributed Lock Store)]
-        TokenGenerator[Fencing Token Generator]
-    end
-
-    subgraph Database_Layer[SQL Database]
-        TxManager[Transaction Manager]
-        RowLocks[Row-Level Locks]
-        LockTable[Lock Metadata]
-        Inventory[(Inventory Table)]
-        Accounts[(Accounts Table)]
-        Jobs[(Jobs Table)]
-    end
-
-    subgraph Worker_Layer[Worker Layer]
-        WorkerA[Worker A]
-        WorkerB[Worker B]
-        Scheduler[Job Scheduler]
-    end
-
-    subgraph Observability[Observability]
-        Metrics[Lock Metrics]
-        Logs[Deadlock and Timeout Logs]
-        Alerts[Alerts]
-    end
-
-    Client --> Gateway
-    Gateway --> Validator
-    Validator --> Service
-    Service --> Idempotency
-
-    Idempotency -->|New Request| LockManager
-    Idempotency -->|Duplicate Request| Service
-
-    LockManager -->|Transactional Resource| TxManager
-    TxManager --> RowLocks
-    RowLocks --> Inventory
-    RowLocks --> Accounts
-    RowLocks --> Jobs
-    RowLocks --> LockTable
-
-    WorkerA --> DistLock
-    WorkerB --> DistLock
-    Scheduler --> DistLock
-
-    DistLock --> TokenGenerator
-    TokenGenerator --> Jobs
-
-    TxManager -->|Deadlock or Timeout| RetryHandler
-    RetryHandler -->|Safe Retry| LockManager
-
-    RowLocks -.-> Metrics
-    DistLock -.-> Metrics
-    RetryHandler -.-> Logs
-    Metrics --> Alerts
-    Logs --> Alerts
-
-    TxManager --> Service
-    Service --> Gateway
-    Gateway --> Client
-```
-
-### Request Flow
-
-```text
-Client request
-      ↓
-Validate request
-      ↓
-Check idempotency key
-      ↓
-Identify protected resource
-      ↓
-Acquire database or distributed lock
-      ↓
-Revalidate current state
-      ↓
-Apply the change
-      ↓
-Commit the transaction
-      ↓
-Release the lock
-      ↓
-Return the result
-```
-
----
-
-### Main Components
-
-#### 1. API Gateway
-
-The API gateway handles:
-
-* Authentication
-* Rate limiting
-* Request tracing
-* Request-size limits
-* API timeouts
-
-Invalid requests should be rejected before acquiring locks.
-
----
-
-#### 2. Backend Service
-
-The service owns the critical business operation.
-
-Its responsibilities include:
-
-* Choosing the protected resource
-* Defining lock scope
-* Starting the transaction
-* Handling conflicts
-* Committing or rolling back
-* Returning controlled errors
-
-The lock boundary should align with the business invariant being protected.
-
----
-
-#### 3. Idempotency Store
-
-Idempotency prevents retried requests from repeating a completed operation.
+# 13. Deadlocks
 
 Example:
 
 ```text
-Idempotency-Key: checkout-user101-cart88
+Tx A: lock account 1
+Tx B: lock account 2
+
+Tx A: wants account 2
+Tx B: wants account 1
 ```
 
-Stored result:
+Mitigation:
 
-```json
-{
-  "idempotency_key": "checkout-user101-cart88",
-  "status": "COMPLETED",
-  "resource_id": "order-5001"
-}
-```
+- lock in consistent order
+- keep transactions short
+- use selective indexes
+- avoid unnecessary resources
+- retry aborted transaction
 
-Locks coordinate simultaneous work. Idempotency protects against repeated work after completion or uncertain responses.
-
-Both may be required.
+Deadlock handling is part of normal application behavior on busy systems. MySQL/InnoDB explicitly documents retrying transactions that are rolled back as deadlock victims. 
 
 ---
 
-#### 4. Lock Manager
+# 14. Lock Timeout vs Deadlock
 
-The lock manager determines:
+### Deadlock
 
-* Which resource to lock
-* Which locking mechanism to use
-* Lock timeout
-* Retry policy
-* Lock ordering
-* Ownership information
+A dependency cycle exists.
 
-Example resource identifiers:
+Database may detect and abort a victim quickly.
+
+### Lock timeout
+
+No cycle is required.
+
+A request simply waits too long for a resource.
+
+These need different observability and sometimes different retry policy.
+
+---
+
+# 15. `NOWAIT`
+
+Some databases support immediate failure instead of waiting.
+
+Use when:
 
 ```text
-inventory:product:301
-account:101
-job:daily-settlement
-file:customer-import-900
-```
-
----
-
-#### 5. Transaction Manager
-
-The transaction manager controls:
-
-```text
-BEGIN
-COMMIT
-ROLLBACK
-```
-
-Database locks should usually be held within a transaction and released immediately after commit or rollback.
-
----
-
-#### 6. Row-Level Locks
-
-Row-level locks protect individual database records.
-
-```sql
-SELECT available_stock
-FROM inventory
-WHERE product_id = 301
-FOR UPDATE;
-```
-
-The database tracks ownership and releases the lock when the transaction ends.
-
----
-
-#### 7. Distributed Lock Store
-
-A distributed lock store coordinates independent service instances.
-
-A lock record may contain:
-
-```json
-{
-  "resource": "job:daily-settlement",
-  "owner": "worker-17",
-  "expires_at": "2026-08-01T10:31:00Z",
-  "fencing_token": 42
-}
-```
-
-The implementation should use an atomic acquire operation rather than:
-
-```text
-Check whether lock exists
-Then create lock
-```
-
-That check-then-create sequence contains a race condition.
-
----
-
-#### 8. Fencing Token Generator
-
-Each successful lock acquisition receives a larger token.
-
-The protected resource rejects requests carrying an older token.
-
-This prevents stale lock holders from modifying data after their lease expires.
-
----
-
-#### 9. Retry Handler
-
-Some locking failures are temporary:
-
-* Deadlock
-* Lock timeout
-* Optimistic conflict
-* Lease acquisition failure
-
-Safe retries should use:
-
-* Limited attempts
-* Exponential backoff
-* Random jitter
-* Idempotency protection
-* Clear metrics
-
----
-
-#### 10. Observability
-
-Monitor:
-
-* Lock acquisition latency
-* Lock hold duration
-* Lock timeout rate
-* Deadlock count
-* Retry count
-* Optimistic conflict rate
-* Number of waiting transactions
-* Distributed lock expiry rate
-* Stale fencing-token rejection
-* Long-running transactions
-
-High P95 or P99 latency may be caused by lock contention even when query execution is fast.
-
----
-
-## Comparison: Pessimistic vs Optimistic Locking
-
-| Area               | Pessimistic Locking                    | Optimistic Locking                     |
-| ------------------ | -------------------------------------- | -------------------------------------- |
-| Strategy           | Block conflicts before modification    | Detect conflicts during modification   |
-| Waiting            | Common                                 | Usually no waiting                     |
-| Conflict result    | Other requests wait or time out        | One update fails and retries           |
-| Best for           | High-contention resources              | Low-contention resources               |
-| Database technique | `SELECT ... FOR UPDATE`                | Version or timestamp check             |
-| Main risk          | Deadlocks and lock waits               | Frequent retries under high contention |
-| Throughput         | Lower when locks are heavily contested | High when conflicts are rare           |
-| Example            | Final seat reservation                 | Editing a user profile                 |
-
-### Rule of Thumb
-
-Use pessimistic locking when conflicts are frequent and only one operation should proceed at a time.
-
-Use optimistic locking when conflicts are uncommon and retrying is cheaper than making requests wait.
-
-For simple counters or inventory updates, an atomic conditional update may be better than either approach.
-
----
-
-## Real-World Example: Flash-Sale Inventory
-
-Consider a flash sale with:
-
-```text
-Product: Gaming Console
-Available stock: 100
-Concurrent buyers: 10,000
-```
-
-The system must prevent inventory from becoming negative.
-
----
-
-### Unsafe Read-Then-Write Flow
-
-```sql
-SELECT available_stock
-FROM inventory
-WHERE product_id = 301;
-```
-
-Application logic:
-
-```text
-If stock > 0:
-    stock = stock - 1
-```
-
-Update:
-
-```sql
-UPDATE inventory
-SET available_stock = 99
-WHERE product_id = 301;
-```
-
-Many requests can read the same stock value before any update commits.
-
-This creates lost updates and overselling.
-
----
-
-### Option 1: Atomic Conditional Update
-
-```sql
-UPDATE inventory
-SET available_stock = available_stock - 1
-WHERE product_id = 301
-  AND available_stock > 0;
-```
-
-The application checks the affected row count:
-
-```text
-1 row updated → Inventory reserved
-0 rows updated → Sold out
-```
-
-This is often the simplest solution.
-
----
-
-### Option 2: Pessimistic Row Lock
-
-```sql
-BEGIN;
-
-SELECT available_stock
-FROM inventory
-WHERE product_id = 301
-FOR UPDATE;
-
-UPDATE inventory
-SET available_stock = available_stock - 1
-WHERE product_id = 301
-  AND available_stock > 0;
-
-INSERT INTO reservations(
-    user_id,
-    product_id,
-    status
-)
-VALUES (
-    101,
-    301,
-    'RESERVED'
-);
-
-COMMIT;
-```
-
-This protects the full reservation workflow but serializes transactions competing for the same product row.
-
----
-
-### Option 3: Optimistic Lock
-
-```sql
-UPDATE inventory
-SET available_stock = available_stock - 1,
-    version = version + 1
-WHERE product_id = 301
-  AND version = 42
-  AND available_stock > 0;
-```
-
-A zero-row result means:
-
-* Another request updated the record
-* The version is stale
-* The product sold out
-
-The application can reload the record and retry a limited number of times.
-
-Under extremely high contention, optimistic retries may create additional database load.
-
----
-
-### Flash-Sale Architecture
-
-```mermaid
-sequenceDiagram
-    participant C as Client
-    participant API as Order Service
-    participant DB as SQL Database
-    participant Q as Event Queue
-    participant W as Fulfillment Worker
-
-    C->>API: Purchase product 301
-    API->>API: Validate idempotency key
-    API->>DB: Begin transaction
-    API->>DB: Atomic stock decrement
-    DB-->>API: One row updated
-    API->>DB: Insert reservation
-    API->>DB: Insert outbox event
-    API->>DB: Commit transaction
-    DB-->>API: Commit successful
-    API-->>C: Product reserved
-    API->>Q: Publish committed reservation
-    Q->>W: Process fulfillment
-```
-
----
-
-### Handling a Sold-Out Product
-
-When the conditional update affects zero rows:
-
-```text
-Rollback transaction
+resource busy
       ↓
-Return sold-out response
+return conflict / try another resource
 ```
 
-Example:
-
-```json
-{
-  "error": "PRODUCT_SOLD_OUT",
-  "message": "This product is no longer available."
-}
-```
+is better than queueing.
 
 ---
 
-### Handling Client Retries
+# 16. `SKIP LOCKED`
 
-The client may time out after the database commits.
-
-Request:
-
-```http
-POST /orders
-Idempotency-Key: flash-sale-user101-product301
-```
-
-A repeated request should return the existing reservation rather than decrementing stock again.
-
----
-
-### Scaling Beyond One Hot Row
-
-One inventory row can become a bottleneck during extreme traffic.
-
-Possible strategies include:
-
-* Admission control
-* Waiting-room queues
-* Partitioned inventory buckets
-* Reservation tokens
-* Per-region inventory
-* Preallocated stock pools
-* Asynchronous order acceptance
-
-These approaches increase complexity and should be introduced only when database-level atomic updates no longer meet the throughput requirement.
-
----
-
-## Best Practices
-
-### 1. Lock the Smallest Necessary Resource
-
-Prefer:
-
-```text
-Lock one inventory row
-```
-
-over:
-
-```text
-Lock the complete inventory table
-```
-
-Smaller lock scope preserves concurrency.
-
----
-
-### 2. Keep Lock Duration Short
-
-Inside a lock:
-
-* Read required state
-* Validate the rule
-* Apply the update
-* Commit
-
-Do not perform unrelated work.
-
----
-
-### 3. Never Hold Database Locks During External Calls
-
-Avoid:
-
-```text
-Begin transaction
-Acquire lock
-Call payment provider
-Wait for response
-Update database
-Commit
-```
-
-External calls have unpredictable latency and failure behavior.
-
----
-
-### 4. Use Atomic Updates When Possible
-
-Prefer:
+Useful for worker queues:
 
 ```sql
-UPDATE inventory
-SET available_stock = available_stock - 1
-WHERE product_id = ?
-  AND available_stock > 0;
+SELECT id
+FROM jobs
+WHERE status = 'READY'
+FOR UPDATE SKIP LOCKED
+LIMIT 10;
 ```
 
-This may remove the need for an explicit application-managed lock.
+Multiple workers can claim different unlocked jobs.
+
+Do not use `SKIP LOCKED` for a query that is supposed to represent a complete consistent business set; it intentionally omits locked rows.
 
 ---
 
-### 5. Check Affected Row Counts
+# 17. Distributed Locks
 
-A conditional update may affect zero rows.
+A distributed lock/lease can coordinate service instances.
 
-Always distinguish between:
+Possible resource:
 
 ```text
-Update succeeded
-Resource unavailable
-Version conflict
-Record missing
+job:month-end-close
 ```
+
+Need:
+
+- unique owner
+- TTL/lease
+- atomic acquisition
+- safe release
+- renewal strategy
+- failure semantics
+- fencing/version where correctness requires it
 
 ---
 
-### 6. Acquire Multiple Locks in a Consistent Order
+# 18. Lease Expiry Problem
 
-For account transfers:
+Timeline:
 
 ```text
-Lock lower account ID first
-Lock higher account ID second
+Worker A gets lease
+      ↓
+A pauses for 60 seconds
+      ↓
+lease expires
+      ↓
+Worker B gets lease
+      ↓
+A resumes
 ```
 
-Use the same order throughout the system.
+Now A and B may both act.
+
+TTL alone does not prove exclusive execution.
 
 ---
 
-### 7. Configure Lock Timeouts
+# 19. Fencing Tokens
 
-Requests should not wait forever.
-
-Use:
-
-* Lock timeout
-* Statement timeout
-* Transaction timeout
-* API timeout
-
-The shortest timeout should not accidentally expire while a lower layer continues consuming resources.
-
----
-
-### 8. Retry Only Safe Failures
-
-Potentially retryable errors include:
-
-* Deadlocks
-* Serialization failures
-* Optimistic version conflicts
-* Temporary lock-acquisition failures
-
-Use bounded retries with backoff and jitter.
-
----
-
-### 9. Make Retried Operations Idempotent
-
-A retry must not duplicate:
-
-* Orders
-* Payments
-* Refunds
-* Reservations
-* Scheduled jobs
-
-Locks alone do not provide request-level idempotency.
-
----
-
-### 10. Use Leases for Distributed Locks
-
-Distributed locks should normally expire so crashed owners cannot block the resource permanently.
-
-The lease duration must account for:
-
-* Expected task duration
-* Network delay
-* Process pauses
-* Renewal failures
-
----
-
-### 11. Use Fencing Tokens for Critical Distributed Work
-
-Lease expiry cannot stop an old worker from continuing after a long pause.
-
-Fencing tokens allow the protected resource to reject stale workers.
-
----
-
-### 12. Release Only Locks You Own
-
-A distributed lock release should verify the owner identifier.
-
-Unsafe:
+Issue monotonically increasing epochs:
 
 ```text
-Delete lock by resource name
+A gets token 41
+B later gets token 42
 ```
 
-Safer:
+Authoritative resource stores/accepts latest token.
+
+If A resumes:
 
 ```text
-Delete lock only when resource and owner token match
+token 41 < 42
+      ↓
+reject stale write
 ```
 
----
-
-### 13. Monitor Contention
-
-Track resources with:
-
-* High wait time
-* Frequent timeouts
-* High retry rates
-* Long lock duration
-* Repeated deadlocks
-
-A hot resource may require redesign rather than larger timeouts.
+Fencing moves safety to the protected resource.
 
 ---
 
-### 14. Test Real Concurrent Requests
+# 20. Distributed Lock vs Leader Election
 
-Single-request tests do not reveal locking bugs.
+Related but different.
 
-Test:
-
-* Two simultaneous updates
-* High-contention inventory
-* Opposite-direction transfers
-* Worker crash while holding a lease
-* Lock expiry during processing
-* Deadlock recovery
-
----
-
-### 15. Document Lock Ownership
-
-For every important lock, document:
+Leader election:
 
 ```text
-Resource being protected
-Lock owner
-Acquisition location
-Release location
-Timeout
-Retry behavior
-Lock ordering
-Failure recovery
+one process owns a role for an epoch
 ```
 
-Undocumented locking conventions are difficult to maintain safely.
-
----
-
-## Common Mistakes
-
-### 1. Locking Too Much Data
-
-A table-level lock for a row-level operation reduces concurrency unnecessarily.
-
----
-
-### 2. Holding Locks Too Long
-
-Long lock duration increases:
-
-* Waiting requests
-* Deadlock probability
-* Timeout rate
-* Connection usage
-* Tail latency
-
----
-
-### 3. Calling External Services While Holding a Lock
-
-A slow payment, email, or storage service can block unrelated database work.
-
----
-
-### 4. Forgetting to Release Application Locks
-
-Locks should be released in guaranteed cleanup logic.
+Lock:
 
 ```text
-Acquire
-Try operation
-Finally release
+one owner temporarily controls one resource
 ```
 
-Database locks should be released through commit or rollback.
+A leader still needs fencing/term numbers if stale leaders can continue writing.
 
 ---
 
-### 5. Using Read-Then-Write Without Protection
+# 21. Lock vs Idempotency
 
-Unsafe:
+Lock:
 
 ```text
-Read stock
-Change value in application
-Write value
+prevent/serialize concurrent execution
 ```
 
-Use an atomic update, version check, or explicit lock.
-
----
-
-### 6. Retrying Without Idempotency
-
-The original operation may already have committed before the client received an error.
-
-Blind retries can duplicate business actions.
-
----
-
-### 7. Locking Resources in Different Orders
-
-Inconsistent ordering creates preventable deadlocks.
-
----
-
-### 8. Retrying Forever
-
-Unlimited retries increase load and hide persistent problems.
-
-Use bounded attempts and expose a controlled failure.
-
----
-
-### 9. Assuming a Distributed Lock Is Perfect
-
-Distributed locks must handle:
-
-* Network partitions
-* Expired leases
-* Paused processes
-* Duplicate owners
-* Clock differences
-* Stale workers
-
-A simple lock key with an expiry may not protect critical resources safely.
-
----
-
-### 10. Releasing Another Owner’s Lock
-
-Deleting a lock without verifying its owner may release a newer worker’s valid lock.
-
----
-
-### 11. Using a Lease Without Fencing Tokens
-
-An expired worker may resume and overwrite work completed by the new owner.
-
----
-
-### 12. Using Locks Instead of Database Constraints
-
-Locks coordinate operations, but constraints should still protect final invariants.
-
-Examples:
-
-* Unique constraints
-* Foreign keys
-* Check constraints
-* Exclusion constraints
-
----
-
-### 13. Using a Global Lock for Convenience
-
-A global lock may be easy to implement but can turn the entire system into a single-threaded workflow.
-
----
-
-### 14. Ignoring Lock Metrics
-
-A query may appear slow because it is waiting for a lock, not because its execution plan is inefficient.
-
----
-
-### 15. Assuming In-Memory Locks Work Across Instances
-
-A lock inside one application process does not coordinate other servers.
+Idempotency:
 
 ```text
-Instance A lock ≠ Instance B lock
+make repeated logical request safe
 ```
 
-Use database or distributed coordination when multiple instances share the resource.
+Example checkout may need:
+
+- atomic stock update
+- idempotency key
+- no distributed lock at all
+
+Do not add a lock when a unique key solves the actual duplicate-request problem.
 
 ---
 
-## Interview Questions with Short Answers
+# 22. Hot Lock / Hot Row
 
-### 1. What is the difference between shared and exclusive locks?
+A single popular counter or resource can serialize throughput.
 
-A shared lock allows multiple compatible readers. An exclusive lock gives one transaction write access and blocks conflicting operations.
+Symptoms:
 
----
+- rising lock wait
+- low CPU but high latency
+- one row dominates write traffic
 
-### 2. What is the difference between optimistic and pessimistic locking?
+Options:
 
-Pessimistic locking blocks conflicting operations before modification. Optimistic locking allows concurrent work but detects conflicts using a version or timestamp during the update.
-
----
-
-### 3. What causes a deadlock?
-
-A deadlock occurs when transactions hold resources and wait for each other in a cycle. Consistent lock ordering and short transactions reduce the risk.
-
----
-
-### 4. Why does a distributed lock need an expiration time and fencing token?
-
-Expiration releases abandoned locks after a worker crashes. A fencing token prevents an expired lock owner from continuing to modify the protected resource.
+- sharded counters
+- batching
+- partitioned ownership
+- queue/serialized worker
+- redesign invariant
+- reduce critical section
 
 ---
 
-### 5. How would you prevent inventory from becoming negative?
+# 23. Observability
 
-Use an atomic conditional update such as `UPDATE ... WHERE available_stock > 0`, check the affected row count, and keep the reservation changes in one transaction.
+Track:
+
+- lock acquisition latency
+- lock hold duration
+- waiting sessions
+- deadlock count
+- lock timeout count
+- aborted/retried transactions
+- hot resources
+- advisory lock count
+- distributed lease expiration
+- stale fencing rejection
+- p95/p99 mutation latency
+
+For PostgreSQL inspect `pg_locks` and blocking relationships.
+
+For MySQL inspect lock/deadlock instrumentation and InnoDB status/performance schema as appropriate.
 
 ---
 
-## Key Takeaways
+# 24. Common Mistakes
 
-1. **Locks protect critical sections, not entire systems.** Use the smallest lock scope and hold it for the shortest possible time.
+### “FOR UPDATE blocks all readers”
 
-2. **Choose coordination based on contention.** Pessimistic locking is useful for frequent conflicts, while optimistic locking works well when conflicts are rare.
+Not a portable statement.
 
-3. **Distributed locks require failure-aware design.** Use atomic acquisition, ownership checks, leases, fencing tokens, idempotency, and observability.
+### “Every SQL SELECT gets a shared row lock”
+
+False in MVCC systems.
+
+### “Row locks always become table locks at scale”
+
+Vendor-specific, not universal.
+
+### “Distributed lock guarantees exactly one execution”
+
+Lease expiry can allow stale work.
+
+### “Use Redis lock for database inventory”
+
+Prefer DB invariant/atomic update when the DB is authoritative.
+
+### “Deadlock means retry one statement”
+
+The database may have rolled back the whole transaction; follow product semantics.
+
+---
+
+# Interview Answer Template
+
+> “The authoritative state is the inventory row, so I would first avoid an external distributed lock and use an atomic conditional decrement. If the operation requires reading several mutable fields before deciding, I’d use a row lock or Serializable transaction depending on the invariant. I’ll keep the transaction short, index the locking predicate so the lock footprint is narrow, and retry deadlock/serialization failures according to the database semantics. A distributed lease is only for coordination outside that DB boundary, and correctness-critical external resources need fencing tokens.”
+
+---
+
+## References
+
+- PostgreSQL explicit locking: https://www.postgresql.org/docs/current/explicit-locking.html
+- MySQL InnoDB locks: https://dev.mysql.com/doc/refman/8.4/en/innodb-locks-set.html
+- MySQL deadlocks: https://dev.mysql.com/doc/refman/8.4/en/innodb-deadlocks.html
