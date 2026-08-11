@@ -1,479 +1,221 @@
 # High-Level Design (HLD)
 
-High-Level Design (HLD) is the process of defining the **overall architecture** of a software system. It focuses on **what components exist, how they communicate, and how the system satisfies functional and non-functional requirements**, without diving into implementation details.
+High-Level Design explains the major system boundaries, data ownership, request/event flows, scaling model, failure behavior, and production trade-offs needed to satisfy the requirements.
 
-Think of HLD as the **blueprint of a building**—it shows rooms, floors, and connections, but not the electrical wiring inside the walls.
+In a system-design interview, HLD is not “draw boxes until the page is full.” Every major box should have a requirement-driven reason to exist.
 
-## Goals of HLD
+## Interview TL;DR
 
-* Define system architecture
-* Identify major components/services
-* Describe communication between components
-* Address scalability, reliability, availability, and security
-* Estimate infrastructure requirements
-* Enable multiple teams to work independently
+1. Requirements and design-driving estimates come before architecture.
+2. Draw the critical end-to-end flow first.
+3. Name the source of truth for important state.
+4. Define APIs/events and data model deeply enough to expose access patterns.
+5. State where synchronous calls end and asynchronous work begins.
+6. Explain consistency and failure behavior for critical operations.
+7. Identify the first bottleneck and the 10× evolution path.
+8. Include security and observability as architecture concerns.
+9. Reject at least one plausible alternative and explain why.
+10. Prefer one coherent design over many disconnected technologies.
 
-## What HLD Includes
-
-### 1. Functional Requirements
-
-What the system should do.
-
-Example:
-
-* User registration
-* Login
-* Upload files
-* Search products
-
-### 2. Non-Functional Requirements
-
-How well the system should perform.
-
-Examples:
-
-* Scalability
-* Availability
-* Reliability
-* Performance
-* Latency
-* Throughput
-* Security
-* Fault tolerance
-* Maintainability
-
-### 3. System Architecture
-
-Examples:
-
-* Monolith
-* Microservices
-* Event-driven
-* Serverless
-* Layered architecture
-
-### 4. Components
-
-Examples:
-
-* API Gateway
-* Load Balancer
-* Authentication Service
-* User Service
-* Notification Service
-* Cache
-* Database
-* Message Queue
-
-### 5. Database Design
-
-At HLD level:
-
-* SQL vs NoSQL
-* Read replicas
-* Sharding
-* Partitioning
-* Replication
-
-No table-level schema yet.
-
-### 6. API Design
-
-Examples:
-
-```
-POST /users
-
-GET /orders/{id}
-
-PUT /cart
-
-DELETE /wishlist
-```
-
-Only endpoints—not implementation.
-
-### 7. Data Flow
-
-Example:
-
-```
-        Client
-          ↓
-      API Gateway
-          ↓
-    Authentication
-          ↓
-    Order Service
-          ↓
-      Database
-          ↓
-      Response
-```
-
-### 8. Scaling Strategy
-
-Examples:
-
-* Horizontal Scaling
-* Vertical Scaling
-* Auto Scaling
-* Load Balancing
-
-### 9. Fault Tolerance
-
-Examples:
-
-* Retries
-* Circuit Breaker
-* Replication
-* Failover
-* Backup
-
-### 10. Security
-
-Examples:
-
-* JWT
-* OAuth
-* HTTPS
-* Encryption
-* RBAC
-* API Rate Limiting
-
----
-
-## Typical HLD Diagram
+## HLD Sequence
 
 ```text
-                    Client
-                      |
-                Load Balancer
-                      |
-                  API Gateway
-        ______________|_______________
-       |              |               |
-    User            Order           Search
-   Service         Service          Service
-       |              |               |
-      Redis         Kafka           Redis
-       |              |               |
-     MySQL        MongoDB         Elasticsearch
+Requirements
+    ↓
+Scale assumptions
+    ↓
+API / events
+    ↓
+Data model + ownership
+    ↓
+High-level components
+    ↓
+Critical flows
+    ↓
+Deep dive
+    ↓
+Failure / consistency
+    ↓
+Security / observability
+    ↓
+Trade-offs / evolution
 ```
 
----
+## Requirements
 
-# HLD vs LLD
+Identify:
 
-| Feature / Aspect | High-Level Design (HLD) | Low-Level Design (LLD)  |
-| ---------- | ----------------------- | ----------------------- |
-| Focus      | Architecture            | Implementation          |
-| Level      | High                    | Detailed                |
-| Audience   | Architects, Tech Leads  | Developers              |
-| Components | Services                | Classes, Methods        |
-| Database   | SQL vs NoSQL            | Tables, Columns         |
-| APIs       | Endpoints               | Request/Response Models |
-| Diagrams   | Architecture            | Class, Sequence, ER     |
-| Scale      | Entire System           | Individual Module       |
-| Code       | No                      | Yes/Pseudocode          |
-| Goal       | System Blueprint        | Coding Blueprint        |
-| Scope     | Entire system         | Individual components            |
-| Decisions | Architecture          | Design patterns, classes         |
-| Detail    | Abstract              | Detailed                         |
-| Output    | Architecture diagrams | UML, class diagrams, code design |
-| Changes   | Less frequent         | More frequent during development |
+- critical journey;
+- hard invariants;
+- latency/availability;
+- read/write/connection scale;
+- geography;
+- retention;
+- security;
+- non-goals.
 
----
+## Design-Driving Estimates
 
-# Real-world Examples
-
-### 1. URL Shortener (TinyURL/Bitly)
-
-Components:
-
-```
-      Client
-        ↓
-  Load Balancer
-        ↓
-    API Server
-        ↓
-    URL Service
-        ↓
-      Cache
-        ↓
-     Database
+```text
+peak reads/sec
+peak writes/sec
+dataset/year
+bandwidth
+concurrent connections
+largest tenant/hot key
 ```
 
-Features:
+## Interfaces
 
-* Generate short URL
-* Redirect
-* Analytics
-* Cache popular URLs
+Example:
 
-### 2. WhatsApp
-
-Components:
-
-* Chat Service
-* Presence Service
-* Notification Service
-* Media Service
-* Message Queue
-* Distributed Storage
-* Load Balancers
-
-Focus:
-
-* Low latency
-* High availability
-* Billions of messages
-
-### 3. Netflix
-
-Components:
-
-* API Gateway
-* Recommendation Service
-* Streaming Service
-* User Service
-* Billing
-* CDN
-* Cache
-
-Design Goals:
-
-* Global scalability
-* Fault tolerance
-* Low latency streaming
-
-### 4. Uber
-
-Components:
-
-* Rider Service
-* Driver Service
-* Matching Service
-* Pricing Service
-* Maps
-* Payment Service
-* Notification Service
-
-Challenges:
-
-* Real-time location updates
-* Surge pricing
-* High availability
-
-### 5. Amazon
-
-Components:
-
-* Product Catalog
-* Inventory
-* Search
-* Cart
-* Payment
-* Recommendation
-* Order Service
-
-Uses:
-
-* Caching
-* Microservices
-* Event-driven architecture
-* Distributed databases
-
-### 6. YouTube
-
-Components:
-
-* Upload Service
-* Encoding Service
-* Metadata Service
-* CDN
-* Recommendation Engine
-* Search Service
-
-Challenges:
-
-* Video processing
-* Large storage
-* Global delivery
-
----
-
-# Best Practices
-
-### Understand Requirements First
-
-Never start designing before clarifying:
-
-* Functional requirements
-* Non-functional requirements
-* Constraints
-* Scale estimates
-
-### Estimate Scale
-
-Know:
-
-* Daily Active Users
-* Requests per second
-* Storage
-* Bandwidth
-* Read/write ratio
-
-### Keep Components Loosely Coupled
-
-Prefer:
-
-```
-      API Gateway
-          ↓
-    Microservices
-          ↓
-Independent Databases
+```http
+POST /v1/orders
+GET /v1/orders/{id}
 ```
 
-instead of tightly coupled services.
+Events:
 
-### Design for Failure
+```text
+OrderCreated
+PaymentAuthorized
+ShipmentCreated
+```
 
-Assume:
+Interfaces expose transaction boundaries and coupling.
 
-* Server crashes
-* Database failures
-* Network issues
-* Service outages
+## Data Model and Ownership
 
-Use:
+Do not stop at “SQL or NoSQL.”
 
-* Retries
-* Timeouts
-* Circuit breakers
-* Failover
-* Replication
+Ask:
 
-### Use Caching Wisely
+- authoritative owner;
+- access patterns;
+- primary/partition key;
+- indexes;
+- transaction boundary;
+- consistency;
+- retention;
+- projections.
 
-Cache:
+## Architecture
 
-* Frequently read data
-* Sessions
-* Product details
-* Search results
+```mermaid
+flowchart LR
+    C[Client] --> E[Edge / Gateway]
+    E --> O[Order Service]
+    O --> DB[(Order DB)]
+    O --> OB[(Outbox)]
+    OB --> Q[Broker]
+    Q --> P[Payment Worker]
+    Q --> N[Notification Worker]
+```
 
-Avoid caching highly dynamic or sensitive data without proper invalidation.
+Explain why each component exists.
 
-### Prefer Stateless Services
+## Critical Flows
 
-Benefits:
+### Synchronous
 
-* Easier scaling
-* Simpler deployments
-* Better fault tolerance
+What must complete before returning success?
 
-### Use Asynchronous Processing
+### Asynchronous
 
-Good candidates:
+What is durable before acknowledgement?
 
-* Emails
-* Notifications
-* Image processing
-* Video encoding
-* Report generation
+### Failure
 
-### Secure Every Layer
+What happens when a dependency is slow or unavailable?
+
+## Deep Dive
+
+Pick the hardest requirement:
+
+- partitioning;
+- cache consistency;
+- ordering;
+- idempotency;
+- reservation;
+- multi-region;
+- fan-out;
+- search;
+- persistent connection management.
+
+Depth is stronger signal than extra boxes.
+
+## Scaling
+
+Name the bottleneck, then state the trigger for change.
+
+## Failure and Recovery
+
+Cover:
+
+- deadlines;
+- retry safety;
+- overload;
+- backlog;
+- replica lag;
+- stateful failover;
+- region loss;
+- reconciliation;
+- RPO/RTO.
+
+## Security
 
 Include:
 
-* Authentication
-* Authorization
-* Encryption
-* Rate limiting
-* Input validation
-* Audit logging
+- trust boundaries;
+- authentication;
+- authorization;
+- encryption;
+- abuse/rate limiting;
+- sensitive data;
+- audit trail.
 
-### Monitor Everything
+## Observability
 
-Track:
+Tie telemetry to failure modes:
 
-* Latency
-* CPU
-* Memory
-* Error rates
-* Throughput
-* Availability
-* Business metrics
+```text
+request p99
+error rate
+DB saturation
+cache hit/miss
+queue oldest age
+replication lag
+workflow stuck age
+```
 
----
+## Trade-Offs
 
-# Common Mistakes
+```text
+Decision
+→ Driver
+→ Benefit
+→ Cost
+→ Failure mode
+→ Mitigation
+→ Revisit trigger
+```
 
-#### 1. Ignoring Non-Functional Requirements
+## HLD vs LLD
 
-Designing only for features and ignoring scalability, availability, or security.
+HLD owns distributed boundaries, communication, data ownership, scaling, failure domains, and evolution.
 
-#### 2. Overengineering
+LLD owns internal interfaces, state machines, algorithms, component-level concurrency, and detailed implementation.
 
-Adding Kafka, Kubernetes, and dozens of microservices for a small application.
+## Common Mistakes
 
-#### 3. Choosing the Wrong Database
+- database choice before access patterns;
+- microservices without an ownership/deployment need;
+- queue without delivery/idempotency semantics;
+- cache without invalidation/fallback;
+- multi-region without write ownership;
+- no bottleneck/evolution story;
+- security/observability added as final checkboxes.
 
-Using a relational database for highly flexible documents or a NoSQL database where complex transactions are essential.
+## 2-Minute Interview Answer
 
-#### 4. No Caching Strategy
-
-Every request hitting the database leads to poor performance.
-
-#### 5. Single Point of Failure (SPOF)
-
-Examples:
-
-* One database instance
-* One server
-* One cache node
-
-Always plan redundancy.
-
-#### 6. Synchronous Calls Everywhere
-
-Long dependency chains increase latency and failure propagation.
-
-#### 7. Ignoring Observability
-
-Without logs, metrics, and traces, diagnosing production issues becomes difficult.
-
-#### 8. Not Planning for Growth
-
-Designing only for current traffic instead of expected future scale.
-
-#### 9. Missing Security Considerations
-
-Examples:
-
-* No authentication
-* Plain-text passwords
-* Unencrypted communication
-* Lack of rate limiting
-
-#### 10. Skipping Capacity Estimation
-
-Without estimating users, traffic, and storage, infrastructure choices are often inaccurate.
-
----
-
-# Key Takeaways
-
-* High-Level Design defines the **overall architecture** of a system rather than implementation details.
-* Start with **functional and non-functional requirements** before selecting technologies or patterns.
-* Break the system into **independent, loosely coupled components** with clear responsibilities.
-* Consider core architectural concerns early: **scalability, availability, reliability, security, and maintainability**.
-* Select storage, caching, and communication mechanisms based on workload characteristics (read/write ratio, consistency, latency).
-* Eliminate **single points of failure** using redundancy, replication, and failover strategies.
-* Use **asynchronous messaging** for long-running or non-critical workflows to improve responsiveness and resilience.
-* Build in **observability** (logging, metrics, tracing, alerting) from the beginning.
-* Avoid overengineering—choose an architecture that fits the current requirements while leaving room for future growth.
-* A strong HLD communicates the system clearly enough that teams can proceed to detailed design (LLD) and implementation with confidence.
+> “My HLD starts from the critical journey and SLOs, then defines APIs/events and authoritative data. I draw the end-to-end flow, separate synchronous from durable async work, and deep dive on the hardest invariant or scaling constraint. I cover deadlines, overload, failover, consistency, security, and observability, then close with the current bottleneck and metric that triggers the next design.”

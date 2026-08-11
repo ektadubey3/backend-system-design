@@ -1,326 +1,187 @@
 # Functional vs Non-Functional Requirements
 
-Every software system is built to solve a problem. Before designing the architecture, we must clearly understand **what the system should do** and **how well it should perform**. These expectations are captured as **Functional Requirements (FRs)** and **Non-Functional Requirements (NFRs)**.
+Requirements are architecture inputs. A system-design interview should not begin with a database, cache, or queue; it should begin by identifying the **user-visible behavior** and the **quality constraints that can change the design**.
 
-Functional requirements define the features and business logic of the application, while non-functional requirements define the quality attributes that determine how reliable, scalable, secure, and efficient the system should be.
+## Interview TL;DR
 
-Understanding this distinction is one of the first and most important steps in system design.
+1. **Functional requirements (FRs)** describe the behaviors the system must support.
+2. **Non-functional requirements (NFRs)** describe measurable qualities or constraints: latency, availability, durability, consistency, security, scale, retention, cost, and geography.
+3. Identify the **critical user journey** and **hard invariants** first.
+4. Replace vague words such as “fast,” “highly available,” and “scalable” with measurable assumptions.
+5. Ask only clarifying questions whose answers could change the architecture.
+6. Explicit non-goals prevent the design from expanding without limit.
 
-## Why Are Requirements Important?
+## Mental Model
 
-Well-defined requirements help engineers:
-
-* Design the right architecture
-* Estimate infrastructure needs
-* Choose appropriate technologies
-* Identify scalability challenges early
-* Avoid costly redesigns
-* Align engineering with business goals
-
-Without clear requirements, even a technically sound architecture may fail to meet user expectations.
-
----
+```text
+What must happen?         → Functional requirements
+How well must it happen?  → Non-functional requirements
+What must never happen?   → Invariants
+What can we ignore now?   → Non-goals
+```
 
 ## Functional Requirements
 
-### Definition
+Functional requirements describe externally visible behavior.
 
-Functional requirements describe **what the system must do**. They specify the features, services, and behaviors that users or other systems expect.
+For a URL shortener:
 
-They answer questions like:
+- create a short link;
+- redirect a short code;
+- optionally support expiry;
+- optionally support custom aliases;
+- record click analytics.
 
-* What actions can users perform?
-* What business rules should the system follow?
-* What APIs should exist?
-* What data should be stored?
+For a chat system:
 
+- send a message;
+- receive messages;
+- fetch history;
+- show delivery/read state;
+- support multiple devices.
 
-### Characteristics
-
-* Feature-specific
-* Business-driven
-* User-focused
-* Testable
-* Usually documented as user stories or use cases
-
-
-### Examples
-
-#### Social Media Platform
-
-* User can register.
-* User can log in.
-* User can create posts.
-* User can like posts.
-* User can comment on posts.
-* User can follow other users.
-* User can search profiles.
-
-
-#### E-Commerce Website
-
-* Browse products
-* Add items to cart
-* Place orders
-* Make payments
-* Track orders
-* Cancel orders
-* Write product reviews
-
-
-#### Banking Application
-
-* Transfer money
-* Check account balance
-* View transaction history
-* Pay utility bills
-* Generate statements
-
----
-
-## Questions to Identify Functional Requirements
-
-* What features are required?
-* Who are the users?
-* What actions can users perform?
-* What business rules exist?
-* What APIs are required?
-
----
+Prioritize the flows that actually determine the architecture.
 
 ## Non-Functional Requirements
 
-### Definition
+### Scale
 
-Non-functional requirements describe **how well the system should perform** rather than what it does.
+State the dimensions that matter:
 
-They define quality attributes that influence architecture, infrastructure, and operational behavior.
+```text
+read QPS
+write QPS
+concurrent connections
+dataset size
+growth/day
+largest tenant
+peak multiplier
+```
 
-### Characteristics
+“10 million users” is usually less useful than “80,000 peak reads/sec and 3,000 writes/sec.”
 
-* Architecture-driven
-* Performance-oriented
-* Often measurable
-* Affect the entire system
-* Critical for large-scale applications
+### Latency
 
-#### Common Non-Functional Requirements
+Prefer percentiles:
 
-#### Scalability
+```text
+redirect p99 < 100 ms
+message-send p95 < 200 ms
+```
 
-Ability to handle increasing users and traffic without significant performance degradation.
+Treat these as explicit product assumptions, not universal thresholds.
 
-Example:
+### Availability
 
-* Support 10 million active users
-* Handle 100,000 requests per second
+Define the operation:
 
-#### Availability
+```text
+redirect path: 99.99%
+analytics dashboard: 99.9%
+```
 
-Percentage of time the system remains operational.
+### Consistency and Freshness
 
-Examples:
+Name the guarantee:
 
-* 99%
-* 99.9%
-* 99.99%
-* 99.999% ("Five Nines")
-
-#### Reliability
-
-Ability to consistently produce correct results without failures.
-
-Example:
-
-A payment should never be processed twice.
-
-
-#### Performance
-
-Measures system responsiveness.
-
-Examples:
-
-* API response time < 200 ms
-* Database query < 50 ms
-* Page loads within 2 seconds
-
-
-#### Latency
-
-The time taken to process a request.
-
-Lower latency improves user experience, especially for real-time systems.
-
-
-#### Throughput
-
-The number of requests processed per unit of time.
+- linearizable decision;
+- read-your-writes;
+- monotonic reads;
+- bounded staleness;
+- eventual convergence.
 
 Example:
 
-* 50,000 requests per second (RPS)
+```text
+inventory reservation → current authoritative state
+search index          → may lag by 5 seconds
+analytics             → may lag by minutes
+```
 
-#### Security
+### Durability
 
-Protects data and services from unauthorized access.
+Ask:
+
+> After the client receives success, how much acknowledged data can we lose?
+
+Express this with an RPO or an equivalent product statement.
+
+### Security and Abuse
+
+Include architecture-changing constraints:
+
+- authentication/authorization;
+- tenant isolation;
+- sensitive data;
+- auditability;
+- rate limiting;
+- abuse detection;
+- data residency.
+
+### Geography
+
+Ask:
+
+- one region or global?
+- where are users?
+- where may data be stored?
+- must writes survive region loss?
+
+### Retention
+
+Retention directly changes storage design.
+
+## Invariants
 
 Examples:
 
-* Authentication
-* Authorization
-* Encryption
-* Secure APIs
-* Data privacy
+```text
+one seat cannot be sold twice
+one idempotency key cannot create two payments
+a ledger entry is never silently overwritten
+```
 
-#### Fault Tolerance
+Invariants are more actionable than broad labels such as “strong consistency.”
 
-Ability to continue operating even when components fail.
+## Non-Goals
 
-Examples:
+> “For the first version, I will design link creation and redirect. Rich analytics ranking and custom domains are out of scope unless we have time.”
 
-* Database replication
-* Automatic failover
-* Multi-region deployment
+## Example — Notification Service
 
-#### Durability
+### Functional
 
-Ensures that committed data is never lost, even during failures.
+- accept a notification request;
+- deliver email, SMS, or push;
+- query delivery status.
 
-Example:
+### Non-functional
 
-Once a payment succeeds, the transaction record must persist.
+- request acceptance p99 < 200 ms;
+- delivery is asynchronous;
+- no silent loss after durable acceptance;
+- downstream effects are idempotent;
+- promotional notifications may be delayed during overload;
+- security notifications receive higher priority.
 
-#### Maintainability
+These requirements immediately imply durable queuing, idempotency, priority, retry policy, and backlog observability.
 
-Ease of updating, debugging, and extending the system.
+## Common Mistakes
 
-Good maintainability reduces development and operational costs.
+- asking questions whose answers do not affect design;
+- treating availability as one global number;
+- naming technology as a requirement;
+- forgetting failure behavior;
+- estimating quantities that do not change a decision.
 
-#### Observability
+## 2-Minute Interview Answer
 
-Ability to understand system behavior using:
+> “I start with the critical user journeys, then make the quality constraints measurable. I identify strict invariants, read/write and connection scale, latency and availability targets, retention, geography, security, and acceptable staleness. I also state non-goals. Those requirements become decision drivers rather than jumping directly to a database or queue.”
 
-* Logs
-* Metrics
-* Traces
-* Monitoring dashboards
+## Senior-Level Follow-ups
 
-#### Consistency
-
-Ensures users receive accurate and synchronized data across distributed systems.
-
----
-
-# Comparison
-
-| Feature    | Functional Requirements     | Non-Functional Requirements                    |
-| ---------- | --------------------------- | ---------------------------------------------- |
-| Purpose    | Define what the system does | Define how the system performs                 |
-| Focus      | Features                    | Quality attributes                             |
-| Driven By  | Business needs              | System architecture                            |
-| Examples   | Login, Search, Payment      | Scalability, Security, Availability            |
-| Scope      | Specific functionality      | Entire application                             |
-| Validation | Feature testing             | Performance, security, and reliability testing |
-
----
-
-# Real-World Example: Instagram
-
-## Functional Requirements
-
-* User registration
-* User login
-* Upload photos
-* Follow users
-* Like posts
-* Comment on posts
-* Search users
-* View feed
-* Send direct messages
-* Receive notifications
-
-
-## Non-Functional Requirements
-
-* Support millions of concurrent users
-* Feed loads in under 300 ms
-* Highly available (99.99% uptime)
-* Secure user authentication
-* Store billions of images reliably
-* Scale horizontally during traffic spikes
-* Deliver notifications with minimal delay
-
----
-
-# How Requirements Influence Architecture
-
-Requirements directly shape architectural decisions.
-
-| Requirement         | Architectural Decision   |
-| ------------------- | ------------------------ |
-| Millions of users   | Horizontal scaling       |
-| Low latency         | Caching (Redis), CDN     |
-| High availability   | Replication and failover |
-| Large file uploads  | Object storage           |
-| High read traffic   | Read replicas            |
-| Real-time messaging | WebSockets               |
-| Event processing    | Kafka or RabbitMQ        |
-| Fault tolerance     | Redundancy and retries   |
-| Fast search         | Elasticsearch            |
-
----
-
-# Best Practices
-
-* Gather functional requirements before designing the system.
-* Define measurable non-functional requirements.
-* Prioritize requirements based on business impact.
-* Identify trade-offs between competing requirements.
-* Validate assumptions with stakeholders.
-* Revisit requirements as the product evolves.
-
----
-
-# Common Mistakes
-
-* Ignoring scalability until production.
-* Treating non-functional requirements as optional.
-* Designing features without understanding business goals.
-* Defining vague requirements such as "the system should be fast."
-* Overengineering for unrealistic future scale.
-* Failing to quantify performance expectations.
-
----
-
-# Interview Questions
-
-#### 1. What is the difference between functional and non-functional requirements?
-
-**Answer:** Functional requirements define what the system should do (features), while non-functional requirements define how well the system should perform (quality attributes like scalability, security, and availability).
-
-#### 2. How do non-functional requirements influence system architecture?
-
-**Answer:** They determine architectural decisions such as caching, load balancing, database replication, sharding, monitoring, and security to meet performance and reliability goals.
-
-#### 3. Give functional and non-functional requirements for a URL Shortener.
-
-**Answer:**
-**Functional:** Create short URLs, redirect to original URLs, custom aliases, analytics.
-**Non-Functional:** High availability, low latency, scalability, fault tolerance, and secure access.
-
-#### 4. Which non-functional requirements are most important for a payment system, and why?
-
-**Answer:** Security, consistency, reliability, availability, and durability are critical to protect transactions, prevent data loss, and ensure correct payment processing.
-
-#### 5. How do you gather and prioritize requirements before starting a system design?
-
-**Answer:** First identify business goals and functional requirements, then define measurable non-functional requirements, prioritize them based on business impact, and design the architecture around those priorities.
-
----
-
-## Key Takeaways
-
-- Functional requirements define **what** a system should do.
-- Non-functional requirements define **how well** the system should perform.
-- Both are essential for designing scalable and reliable systems.
+- how an NFR becomes an SLI/SLO;
+- what happens when NFRs conflict;
+- which operation wins during overload;
+- how requirements differ by operation;
+- how 10× scale changes the design.

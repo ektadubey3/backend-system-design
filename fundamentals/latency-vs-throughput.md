@@ -1,552 +1,208 @@
 # Latency vs Throughput
 
-**Latency** and **Throughput** are two of the most important performance metrics in system design. They measure different aspects of a system's performance and often have a trade-off relationship.
+Latency and throughput describe different dimensions of performance.
 
-* **Latency** measures **how long it takes** for a single request to be processed.
-* **Throughput** measures **how many requests** a system can process over a period of time.
+- **Latency**: how long one operation takes.
+- **Throughput**: how much work completes per unit time.
 
-A system can have:
+Senior-level reasoning also includes **tail latency, concurrency, queueing, saturation, and backpressure**.
 
-* Low latency but low throughput
-* High throughput but high latency
-* Low latency and high throughput (ideal, but difficult and expensive)
+## Interview TL;DR
 
-Understanding the difference is critical for designing scalable, responsive, and efficient distributed systems.
+1. Use percentiles (`p50`, `p95`, `p99`), not only averages.
+2. Throughput normally plateaus when a constrained resource saturates; latency can then rise sharply because work queues.
+3. Batching often improves throughput while increasing per-item latency.
+4. Increasing concurrency helps only until the constrained resource is saturated.
+5. Fan-out makes tail latency important.
+6. Set an end-to-end latency budget and allocate it across dependencies.
+7. Protect the system from unbounded queues with deadlines, concurrency limits, load shedding, and backpressure.
 
----
+## Mental Model
 
-## Why and When Should You Use It?
+```text
+arrival rate
+    ↓
+queue
+    ↓
+service capacity
+    ↓
+completed work
+```
 
-Understanding latency and throughput helps you optimize systems based on business requirements.
+When sustainable arrival rate approaches or exceeds service capacity:
 
-Use **Latency** as the primary metric when:
+```text
+queue grows
+latency rises
+timeouts rise
+retries may amplify load
+```
 
-* Users expect immediate responses
-* Building real-time applications
-* Interactive web applications
-* Online gaming
-* Financial trading
-* Video calls
-* Search engines
+## Latency
 
-Use **Throughput** as the primary metric when:
+Useful components:
 
-* Processing massive amounts of data
-* Batch processing
-* Data pipelines
-* ETL jobs
-* Log processing
-* Video encoding
-* Email delivery
-* Analytics platforms
+```text
+DNS
++ connection establishment
++ TLS
++ queueing
++ application work
++ downstream calls
++ database/cache work
++ serialization
++ network transfer
+```
 
-Sometimes both are equally important.
+Do not assign universal “good” or “bad” millisecond values.
+
+## Tail Latency
+
+Example:
+
+```text
+p50 = 40 ms
+p95 = 90 ms
+p99 = 900 ms
+```
+
+The average can look acceptable while the tail is poor.
+
+Fan-out amplifies this effect:
+
+```text
+request
+ ├─ dependency A
+ ├─ dependency B
+ ├─ dependency C
+ └─ dependency D
+```
+
+The response may wait for the slowest required branch.
+
+## Throughput
 
 Examples:
 
-| Application       | Priority                      |
-| ----------------- | ----------------------------- |
-| Google Search     | Low Latency                   |
-| Online Banking    | Low Latency                   |
-| Stock Trading     | Ultra-low Latency             |
-| Netflix Streaming | Low Latency + High Throughput |
-| Apache Kafka      | High Throughput               |
-| Hadoop            | High Throughput               |
-| Payment Gateway   | Low Latency                   |
-| Data Warehouse    | High Throughput               |
-
----
-
-# Core Concepts
-
-## 1. Latency
-
-Latency is the **time taken to complete one request**.
-
-Formula:
-
 ```text
-Latency = Response Time = End Time − Start Time
+HTTP requests/sec
+events/sec
+messages/sec
+rows/sec
+bytes/sec
+transactions/sec
 ```
 
-Example:
+Higher throughput is useful only if correctness and latency targets still hold.
 
-```text
-User Request
+## Concurrency and Little's Law
 
-↓
-
-Server Processing (20 ms)
-
-↓
-
-Database Query (30 ms)
-
-↓
-
-Response (10 ms)
-
-Total Latency = 60 ms
-```
-
-Lower latency means faster responses.
-
-Example:
-
-| Latency | User Experience  |
-| ------- | ---------------- |
-| 20 ms   | Excellent        |
-| 100 ms  | Good             |
-| 500 ms  | Noticeable delay |
-| 2 sec   | Poor             |
-
----
-
-## 2. Throughput
-
-Throughput is the **number of requests processed per unit time**.
-
-Formula:
-
-```text
-Throughput = Requests Completed / Second
-```
-
-Example:
-
-```text
-Server
-
-1 second
-
-↓
-
-Processes 15,000 requests
-
-Throughput = 15,000 Requests/sec
-```
-
-Higher throughput means the system can handle more work.
-
----
-
-## 3. Bandwidth vs Throughput
-
-Bandwidth is the **maximum possible capacity**, while throughput is the **actual achieved capacity**.
-
-Example:
-
-```text
-Network Capacity = 1 Gbps
-
-Actual Data Transfer = 650 Mbps
-
-Bandwidth = 1 Gbps
-
-Throughput = 650 Mbps
-```
-
----
-
-## 4. Response Time
-
-Latency is a major part of response time.
-
-```text
-Response Time =           Network Delay
-                                +
-                           Queue Time
-                                +
-                          Processing Time
-                                +
-                          Database Time
-                                +
-                          Serialization
-                                +
-                           Transmission
-```
-
----
-
-## 5. Queueing Delay
-
-When requests arrive faster than they can be processed, they wait in a queue.
-
-```text
-  Incoming Requests
-
-      ↓↓↓↓↓↓↓↓↓
-
-        Queue
-
-         ↓↓↓
-
-        Server
-```
-
-As queue length increases:
-
-* Latency increases
-* Throughput eventually plateaus
-* Users experience delays
-
----
-
-## 6. Concurrency
-
-Concurrency allows multiple requests to be processed simultaneously.
-
-Example:
-
-Without concurrency:
-
-```text
-Req1
-
-Req2
-
-Req3
-
-Req4
-```
-
-With concurrency:
-
-```text
-Req1 ──┐
-
-Req2 ──┤
-
-Req3 ──┤
-
-Req4 ──┘
-```
-
-Concurrency generally increases throughput, though poor implementation may increase latency due to contention.
-
----
-
-## 7. Parallelism
-
-Parallelism executes tasks on multiple CPU cores or machines at the same time.
-
-```text
-CPU1 → Req1
-
-CPU2 → Req2
-
-CPU3 → Req3
-
-CPU4 → Req4
-```
-
-Benefits:
-
-* Higher throughput
-* Potentially lower latency for independent workloads
-
----
-
-## 8. Little's Law
-
-A key performance relationship:
+For a stable system:
 
 ```text
 L = λ × W
 ```
 
-Where:
-
-* **L** = Average number of requests in the system
-* **λ (Lambda)** = Throughput (requests/second)
-* **W** = Average latency (seconds)
+- `L`: average work in the system;
+- `λ`: average arrival/completion rate;
+- `W`: average time in system.
 
 Example:
 
 ```text
-Throughput = 200 req/sec
-
-Latency = 0.1 sec
-
-L = 200 × 0.1 = 20 requests
+2,000 requests/sec × 0.1 sec ≈ 200 concurrent requests
 ```
 
----
+This is a planning model, not a substitute for load testing.
 
-# Architecture
+## Saturation
 
-Example architecture balancing latency and throughput:
+Watch the constrained resource:
+
+- CPU;
+- DB connections;
+- thread/event-loop capacity;
+- disk IOPS;
+- network;
+- lock contention;
+- queue consumers;
+- downstream quotas.
+
+Typical shape:
 
 ```text
-                   Users
-                     │
-              Global Load Balancer
-                     │
-          ┌──────────┴──────────┐
-          │                     │
-     App Server 1          App Server 2
-          │                     │
-          └──────────┬──────────┘
-                     │
-                 Cache (Redis)
-                     │
-          ┌──────────┴──────────┐
-          │                     │
-     Database Cluster      Message Queue
-          │                     │
-          └──────────┬──────────┘
-                     │
-              Background Workers
+load ↑
+throughput ↑
+resource saturates
+throughput flattens
+queue + p99 latency ↑
 ```
 
-How components help:
+## Batching
 
-* **Load Balancer** → Distributes traffic, improving throughput.
-* **Cache** → Reduces database access, lowering latency.
-* **Database Replicas** → Improve read throughput.
-* **Message Queue** → Smooths traffic spikes and improves overall throughput.
-* **Background Workers** → Offload long-running tasks to keep user-facing latency low.
+Potential gain:
 
----
+- fewer round trips;
+- better sequential I/O;
+- less per-item overhead.
 
-## Pros
+Cost:
 
-#### Optimizing for Low Latency
+- waiting to fill a batch;
+- larger failure unit;
+- more memory;
+- burstier downstream work.
 
-* Better user experience
-* Faster response times
-* Ideal for interactive applications
-* Reduces perceived wait time
-* Improves customer satisfaction
+## Latency Budget
 
-#### Optimizing for High Throughput
-
-* Handles more users
-* Better resource utilization
-* Higher scalability
-* Efficient batch processing
-* Lower infrastructure cost per request
-
-## Cons
-
-#### Prioritizing Low Latency
-
-* Higher infrastructure costs
-* May require over-provisioning
-* More complex caching strategies
-* Can reduce overall throughput if resources are dedicated to minimizing delay
-
-#### Prioritizing High Throughput
-
-* Higher response times
-* Queueing delays
-* Poor experience for interactive users
-* Risk of bottlenecks under bursty traffic
-
----
-
-# Comparison
-
-| Feature      | Latency                     | Throughput                      |
-| ------------ | --------------------------- | ------------------------------- |
-| Measures     | Time per request            | Requests per unit time          |
-| Unit         | ms, µs, seconds             | Requests/sec, Transactions/sec  |
-| Goal         | Faster responses            | More completed work             |
-| Focus        | Individual request          | Overall system capacity         |
-| Better Value | Lower                       | Higher                          |
-| Affected By  | Network, CPU, I/O, queueing | Hardware, parallelism, scaling  |
-| User Impact  | Directly noticeable         | Mostly visible during high load |
-
----
-
-### Analogy
-Imagine a supermarket.
-
-##### Latency
-* Time a single customer spends from entering the checkout line to leaving.
-
-##### Throughput
-
-* Number of customers served in one hour.
-
-Adding more checkout counters increases throughput, but if each cashier is slow, latency remains high.
-
----
-
-# Real-world Examples
-
-## Google Search
-
-* Primary goal: Ultra-low latency
-* Typical response: *<200 ms*
-* Uses caching, indexing, and globally distributed data centers.
-
----
-
-## Netflix
-
-* Startup latency should be minimal.
-* Streaming requires sustained high throughput to deliver video without buffering.
-* Uses CDNs, adaptive bitrate streaming, and caching.
-
----
-
-## Amazon
-
-* Product search prioritizes latency.
-* Order processing and inventory synchronization prioritize throughput.
-
----
-
-## Apache Kafka
-
-* Designed for extremely high throughput.
-* Can process millions of messages per second with acceptable latency.
-* Used for event streaming and log aggregation.
-
----
-
-## Payment Gateways
-
-* Authorization requests require low latency.
-* Daily settlement and reconciliation jobs prioritize throughput.
-
----
-
-## Hadoop/Spark
-
-* Batch analytics systems optimize throughput over response time.
-* Jobs may run for minutes or hours while processing petabytes of data.
-
----
-
-# Best Practices
-
-* Clearly define whether latency or throughput is the primary business goal.
-* Use caching to reduce latency.
-* Scale horizontally to improve throughput.
-* Employ asynchronous processing for long-running tasks.
-* Use message queues to absorb traffic spikes.
-* Optimize database queries and indexing.
-* Reduce unnecessary network hops.
-* Apply load balancing across healthy instances.
-* Monitor P50, P95, and P99 latency rather than only averages.
-* Track throughput under normal and peak load.
-* Perform load, stress, and endurance testing before production.
-* Use autoscaling to maintain throughput during traffic bursts.
-
----
-
-# Common Mistakes
-
-* Assuming high throughput automatically means low latency.
-* Measuring only average latency while ignoring tail latency (P95/P99).
-* Ignoring queueing delays during peak traffic.
-* Optimizing prematurely without identifying bottlenecks.
-* Using synchronous processing for tasks that could be asynchronous.
-* Overloading a single database instead of scaling reads and writes.
-* Focusing only on CPU utilization while neglecting disk or network bottlenecks.
-* Not testing the system under realistic production loads.
-
----
-
-# Interview Questions
-
-#### 1. What is the difference between latency and throughput?
-
-**Answer:**
-Latency measures the time taken to process a single request, whereas throughput measures the number of requests processed per unit time.
-
----
-
-#### 2. Can a system have low latency but low throughput?
-
-**Answer:**
-Yes. A system may respond very quickly to a few requests but lack the capacity to handle many concurrent requests.
-
----
-
-#### 3. Can increasing throughput increase latency?
-
-**Answer:**
-Yes. As the system approaches its capacity, requests begin to queue, increasing response times even though throughput may continue to rise until saturation.
-
----
-
-#### 4. How does caching affect latency and throughput?
-
-**Answer:**
-Caching reduces response time by avoiding repeated expensive operations, lowering latency. It also reduces backend load, enabling the system to handle more requests, thereby improving throughput.
-
----
-
-#### 5. What is Little's Law?
-
-**Answer:**
-Little's Law states:
+If:
 
 ```text
-L = λ × W
+API p99 target = 300 ms
 ```
 
-It relates the average number of requests in a system (**L**) to throughput (**λ**) and average latency (**W**), helping engineers estimate system capacity and queue sizes.
+allocate a budget across edge, app, database, dependencies, and safety margin. Exact values are assumptions; the exercise exposes where the budget can be consumed.
 
----
+## Overload
 
-#### 6. Why is P99 latency more important than average latency?
+Use:
 
-**Answer:**
-Average latency can hide slow outliers. P99 latency measures the response time below which 99% of requests complete, providing a better indicator of worst-case user experience.
+- bounded queues;
+- request deadlines;
+- load shedding;
+- backpressure;
+- admission control;
+- concurrency limits;
+- priority classes.
 
----
+A timeout without cancellation can still waste server work after the caller has given up.
 
-#### 7. How can you improve throughput?
+## Retry Amplification
 
-**Answer:**
+```text
+client retries 3×
+gateway retries 2×
+service retries 2×
 
-* Horizontal scaling
-* Load balancing
-* Parallel processing
-* Asynchronous messaging
-* Efficient resource utilization
-* Database sharding and replication
-* Batch processing
+one logical request can create up to 12 downstream attempts
+```
 
----
+Retries must fit inside a deadline and retry budget.
 
-#### 8. How can you reduce latency?
+## Common Mistakes
 
-**Answer:**
+- optimizing averages while p99 fails;
+- increasing pools after the downstream is saturated;
+- calling a high-throughput system “fast” without discussing latency;
+- using unbounded queues to hide overload;
+- ignoring retries in capacity estimates;
+- assuming more concurrency always increases throughput.
 
-* Add caching
-* Optimize algorithms
-* Reduce network hops
-* Tune database queries
-* Use CDNs
-* Keep data closer to users
-* Minimize serialization/deserialization overhead
+## Interview Answer Template
 
----
+> “I’ll define a percentile latency target, estimate peak throughput and concurrency, and identify the first saturating resource. I’ll keep queues bounded and propagate deadlines so overload becomes controlled rejection rather than unbounded latency. I may trade latency for throughput with batching on non-interactive paths.”
 
-#### 9. Is higher concurrency always better?
+## References
 
-**Answer:**
-No. Beyond a certain point, excessive concurrency causes resource contention, context switching, and queueing, which can increase latency and even reduce throughput.
-
----
-
-#### 10. How do load balancers help with latency and throughput?
-
-**Answer:**
-Load balancers distribute requests across multiple servers, preventing overload on individual instances. This increases throughput and can reduce latency by routing traffic to healthy, less-busy servers.
-
----
-
-# Key Takeaways
-
-* **Latency** measures **how fast** a request is completed; **Throughput** measures **how much work** is completed over time.
-* Low latency is crucial for interactive, real-time systems, while high throughput is essential for batch and large-scale processing.
-* Improving one metric may negatively impact the other, making performance optimization a balancing act.
-* Queueing, concurrency, caching, load balancing, and parallelism all influence both latency and throughput.
-* Monitor both average and percentile latencies (P95/P99) alongside throughput to gain a complete picture of system performance.
-* The best system design aligns performance optimization with business priorities rather than maximizing a single metric.
+- [Google SRE — Handling Overload](https://sre.google/sre-book/handling-overload/)
+- [Google SRE — Addressing Cascading Failures](https://sre.google/sre-book/addressing-cascading-failures/)

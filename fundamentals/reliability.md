@@ -1,279 +1,185 @@
 # Reliability
 
-Reliability is the ability of a system to consistently perform its intended functions correctly over a period of time, even under varying workloads and unexpected conditions. A reliable system produces accurate, predictable, and consistent results with minimal failures.
+Reliability is the ability of a system to produce the intended outcome over time despite expected faults, retries, partial failures, and operational change.
 
-Unlike availability, which focuses on whether a system is accessible, reliability focuses on whether the system behaves correctly whenever it is used.
+A service can be reachable and still be unreliable if it duplicates a payment, loses accepted work, corrupts state, or returns inconsistent results.
 
+## Interview TL;DR
 
-## Why and When Should You Use It?
+1. Define the **correct outcome** before selecting reliability mechanisms.
+2. Reliability includes correctness, durability, controlled failure, and recoverability.
+3. Retries are safe only when the operation and retry policy are safe.
+4. Idempotency protects repeated business requests/events.
+5. Redundancy helps only with independent failure domains and safe failover.
+6. Backups and restore tests protect against failures replicas may copy.
+7. Reconciliation repairs cross-system states outside one transaction.
+8. Reliability requires observability of stuck, duplicate, stale, and partial work.
+9. Recovery time matters as much as prevention.
+10. Prefer simple local invariants over distributed coordination.
 
-An unreliable system can lead to data corruption, duplicate transactions, incorrect results, and poor user trust—even if the system is always online. Reliability ensures that users receive correct responses and that business operations continue without unexpected failures.
-
-Reliability should be prioritized when building systems that:
-
-* Process financial transactions
-* Handle sensitive user data
-* Manage healthcare records
-* Execute business-critical workflows
-* Operate industrial or IoT systems
-* Provide cloud infrastructure services
-
-Examples include banking applications, payment gateways, airline reservation systems, healthcare platforms, and distributed databases.
-
----
-
-# Core Concepts
-
-## Fault Tolerance
-
-Fault tolerance is the ability of a system to continue operating correctly even when one or more components fail.
+## Reliability Starts With Invariants
 
 Examples:
 
-* Multiple application servers
-* Database replication
-* Redundant network paths
+```text
+one payment request creates at most one charge
+accepted notification is not silently lost
+inventory never violates its reservation rule
+an order eventually reaches a terminal/recoverable state
+```
 
-## Redundancy
+## Failure Categories
 
-Redundancy involves deploying duplicate components to ensure system functionality during failures.
+### Crash failure
 
-Examples:
+Process/node stops.
 
-* Multiple servers
-* Backup databases
-* Multiple network connections
+Defenses:
 
-Redundancy improves both reliability and availability.
+- restart;
+- replication;
+- failover;
+- durable logs.
 
+### Timeout / uncertain outcome
 
-## Error Detection
+Caller may not know whether remote work happened.
 
-Reliable systems continuously detect errors before they impact users.
+Defenses:
 
-Common techniques include:
+- deadlines;
+- idempotency;
+- status lookup;
+- retry;
+- reconciliation.
 
-* Health checks
-* Checksums
-* Data validation
-* Exception handling
-* Monitoring and alerting
+### Overload
 
+System is alive but cannot keep up.
 
-## Error Recovery
+Defenses:
 
-After detecting failures, systems should recover automatically.
+- admission control;
+- load shedding;
+- backpressure;
+- priorities.
 
-Recovery techniques include:
+### Logical failure
 
-* Automatic retries
-* Failover
-* Rollback mechanisms
-* Transaction recovery
-* Database recovery
+Software performs the wrong action.
 
+Replicas may reproduce it.
+
+Defenses:
+
+- invariants;
+- validation;
+- testing;
+- audit trail;
+- backup/PITR;
+- repair.
+
+## Retries
+
+Retry only when:
+
+- failure is plausibly transient;
+- operation is safe to repeat or protected by idempotency;
+- deadline permits it;
+- attempts are bounded.
+
+Use backoff and jitter.
 
 ## Idempotency
 
-An operation is idempotent if performing it multiple times produces the same result as performing it once.
+```text
+Idempotency-Key: payment-order-5001
+```
+
+Persist the key with the business result. Memory-only deduplication does not survive process failure.
+
+## Durable Async Work
+
+For accepted async work:
+
+```text
+receive
+  ↓
+durably persist / enqueue
+  ↓
+acknowledge
+```
+
+Do not acknowledge first and hope persistence succeeds afterward.
+
+## Reconciliation
 
 Example:
 
-Retrying a payment request should not charge the customer multiple times.
-
-
-## Data Integrity
-
-Data integrity ensures that data remains accurate, complete, and consistent throughout its lifecycle.
-
-Techniques include:
-
-* ACID transactions
-* Constraints
-* Checksums
-* Validation rules
-
-
-## Mean Time Between Failures (MTBF)
-
-MTBF measures the average time a system operates before experiencing a failure.
-
-Higher MTBF indicates better reliability.
-
-
-## Mean Time To Recovery (MTTR)
-
-MTTR measures the average time required to recover from a failure.
-
-Lower MTTR improves overall system reliability.
-
----
-
-# Architecture
-
-A reliable backend architecture typically includes redundancy, monitoring, retries, and replicated storage.
-
 ```text
-                    Users
-                      │
-               Load Balancer
-               ┌──────┴──────┐
-               │             │
-        App Server 1   App Server 2
-               │             │
-               └──────┬──────┘
-                      │
-                Message Queue
-                      │
-              Primary Database
-                │            │
-          Read Replica   Backup Database
-                      │
-            Monitoring & Alerts
+payment provider = CAPTURED
+order DB         = PAYMENT_PENDING
 ```
 
-### Request Flow
+A reconciliation process compares authoritative systems and repairs or alerts.
 
-1. Users send requests through the Load Balancer.
-2. Application servers validate and process requests.
-3. Critical operations are queued when necessary.
-4. Data is written to the primary database.
-5. Replication keeps backup databases synchronized.
-6. Monitoring detects failures and triggers recovery mechanisms.
+Include:
 
----
+- retry;
+- stuck/dead-letter state;
+- replay;
+- reconciliation;
+- manual recovery.
 
-## Pros
+## Backups
 
-* Produces consistent and correct results
-* Reduces system failures
-* Prevents data corruption
-* Improves user trust
-* Supports business-critical applications
-* Minimizes unexpected outages caused by software errors
+Replication protects selected infrastructure failures.
 
+Backup/PITR protects against:
 
-## Cons
+- accidental delete;
+- bad migration;
+- malicious change;
+- logical corruption.
 
-* Increased architectural complexity
-* Higher infrastructure and operational costs
-* More extensive testing requirements
-* Additional monitoring and maintenance
-* Performance overhead due to validation and redundancy
+Define RPO, RTO, and restore-test practice.
 
----
+## Observability
 
-# Comparison
+Track:
 
-| Feature          | Reliability                      | Availability                   | Fault Tolerance                                   |
-| ---------------- | -------------------------------- | ------------------------------ | ------------------------------------------------- |
-| **Focus**        | Correct and consistent operation | Continuous accessibility       | Continue operating during failures                |
-| **Goal**         | Minimize failures                | Minimize downtime              | Handle component failures gracefully              |
-| **Measured By**  | MTBF, MTTR, Failure Rate         | Uptime Percentage              | Recovery Time, Failover Success                   |
-| **Example**      | Payment processed exactly once   | Payment service remains online | Backup server takes over after failure            |
-| **Relationship** | Quality attribute                | Quality attribute              | Technique to improve reliability and availability |
+- duplicate operations;
+- retry rate;
+- queue oldest age;
+- stuck workflow age;
+- reconciliation mismatch;
+- failover count;
+- restore-test success.
 
----
+## Reliability vs Availability
 
-# Real-world Examples
+Availability:
 
-### Stripe
+> Can I successfully serve the operation now?
 
-* Uses idempotency keys to prevent duplicate payment processing during retries.
-* Employs extensive monitoring and automated recovery mechanisms to ensure reliable payment execution.
+Reliability:
 
-### Google Spanner
+> Does the system continue producing correct, recoverable outcomes over time?
 
-* Maintains strong data consistency across distributed nodes.
-* Uses replication and consensus protocols to ensure reliable transactions.
+## Common Mistakes
 
-### Amazon
+- retries without idempotency or a budget;
+- replication mistaken for backup;
+- acknowledging before durable acceptance;
+- no handling for uncertain timeout outcomes;
+- no reconciliation for external side effects;
+- defining reliability only as MTBF.
 
-* Implements retries, circuit breakers, and redundant infrastructure to ensure reliable order processing and inventory management.
+## Interview Answer Template
 
-### Banking Systems
+> “I define reliability from the business invariant. Externally retried operations use durable idempotency. Accepted async work is persisted before acknowledgement and consumers tolerate duplicates. Calls use deadlines and bounded retries for transient faults, while reconciliation covers cross-system states that cannot share one transaction. Replication and backup solve different failure classes.”
 
-* Use ACID transactions, rollback mechanisms, and audit logs to ensure financial data remains accurate and consistent.
+## References
 
----
-
-# Best Practices
-
-* Design for failure from the beginning
-* Use idempotent APIs for retryable operations
-* Implement comprehensive monitoring and alerting
-* Validate all incoming data
-* Use ACID transactions for critical operations
-* Employ retries with exponential backoff
-* Regularly test backup and recovery procedures
-* Eliminate single points of failure
-* Automate failover and recovery processes
-* Continuously perform load and chaos testing
-
----
-
-# Common Mistakes
-
-* Assuming availability guarantees reliability
-* Ignoring data validation
-* Processing duplicate requests without idempotency
-* Not testing recovery mechanisms
-* Skipping monitoring and alerting
-* Using retries without limits or backoff
-* Failing to maintain backup integrity
-* Overlooking edge cases during system design
-
----
-
-# Interview Questions
-
-#### 1. What is reliability in system design?
-
-**Answer:**
-Reliability is the ability of a system to consistently perform its intended functions correctly over time while minimizing failures and maintaining data integrity.
-
-
-#### 2. What is the difference between reliability and availability?
-
-**Answer:**
-Availability measures whether a system is accessible, while reliability measures whether it performs correctly and consistently. A service may be available but unreliable if it frequently produces incorrect results.
-
-#### 3. How can you improve the reliability of a distributed system?
-
-**Answer:**
-Common techniques include:
-
-* Redundancy
-* Fault tolerance
-* Data replication
-* Idempotent APIs
-* Monitoring and alerting
-* Automatic retries with backoff
-* Health checks
-* Disaster recovery planning
-
-#### 4. What is idempotency, and why is it important?
-
-**Answer:**
-Idempotency ensures that executing the same operation multiple times produces the same result as executing it once. It prevents duplicate actions during retries, making distributed systems more reliable.
-
-#### 5. What metrics are commonly used to measure reliability?
-
-**Answer:**
-Common reliability metrics include:
-
-* Mean Time Between Failures (MTBF)
-* Mean Time To Recovery (MTTR)
-* Failure Rate
-* Error Rate
-* Success Rate
-* Data Consistency
-* Recovery Time
-
----
-
-# Key Takeaways
-
-* Reliability ensures a system consistently performs correctly, maintains data integrity, and minimizes failures over time.
-* Techniques such as redundancy, fault tolerance, idempotency, monitoring, retries, and recovery mechanisms significantly improve system reliability.
-* A highly available system is not necessarily reliable; true production systems require both continuous accessibility and correct, consistent behavior.
+- [Google SRE — Addressing Cascading Failures](https://sre.google/sre-book/addressing-cascading-failures/)
+- [Google SRE — Data Integrity](https://sre.google/sre-book/data-integrity/)

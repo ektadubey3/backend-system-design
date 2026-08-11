@@ -1,220 +1,169 @@
 # Low-Level Design (LLD)
 
-Low-Level Design (LLD) focuses on the **detailed design of individual modules or components** of a system. It describes **how** each component is implemented, including classes, methods, relationships, data structures, algorithms, and design patterns.
+Low-Level Design describes the internal design of a component: interfaces, data structures, state transitions, concurrency rules, error contracts, and implementation boundaries.
 
-Think of LLD as the **construction plan** of a building—it specifies the wiring, plumbing, and room layouts based on the architectural blueprint (HLD).
+For this backend system-design repository, LLD is supplementary. Do not let class diagrams replace distributed-system reasoning in an HLD interview.
 
-## Goal of LLD
+## Interview TL;DR
 
-* Define the internal implementation of each module.
-* Improve code maintainability and readability.
-* Promote reusability and modularity.
-* Apply appropriate design patterns.
-* Make development and testing easier.
-* Provide a clear blueprint for developers.
+1. LLD is broader than memorizing OOP patterns.
+2. Start from responsibilities and invariants, then define interfaces.
+3. Model workflow state transitions explicitly.
+4. Prefer composition and cohesive modules.
+5. Concurrency and failure behavior belong in LLD when a component owns mutable state.
+6. Use a design pattern only when it solves a demonstrated problem.
+7. Design error, timeout, and retry contracts with the success path.
+8. Keep persistence boundaries explicit.
+9. Make the design testable.
+10. Avoid speculative abstractions.
 
-## What LLD Includes
+## What LLD Can Include
 
-### 1. Class Design
+- interfaces and method contracts;
+- classes/modules/packages;
+- state machines;
+- data structures;
+- algorithms;
+- validation;
+- local concurrency;
+- schema details;
+- error model;
+- dependency boundaries;
+- sequence diagrams;
+- tests.
 
-* Classes
-* Objects
-* Attributes
-* Methods
-* Constructors
-
-### 2. UML Class Diagrams
-
-* Classes
-* Relationships
-* Multiplicity
-* Visibility (`+`, `-`, `#`)
-
-### 3. Object Relationships
-
-* Association
-* Aggregation
-* Composition
-* Inheritance
-* Dependency
-
-### 4. Design Patterns
-
-* Singleton
-* Factory
-* Strategy
-* Observer
-* Builder
-* Adapter
-* Decorator
-
-### 5. Data Structures & Algorithms
-
-* Arrays
-* Lists
-* Maps
-* Queues
-* Trees
-* Searching and sorting algorithms
-
-### 6. Database Design
-
-* Tables
-* Columns
-* Primary Keys
-* Foreign Keys
-* Constraints
-* Indexes
-
-### 7. API & Method Design
-
-* Method signatures
-* Request/Response models
-* Exception handling
-* Validation
-
-### 8. Error Handling
-
-* Custom exceptions
-* Logging
-* Retry logic
-* Input validation
-
----
-
-# Typical LLD Diagram
+## Example — Order State Machine
 
 ```text
-                    +----------------+
-                    |     User       |
-                    +----------------+
-                    | - id           |
-                    | - name         |
-                    +----------------+
-                    | + login()      |
-                    | + logout()     |
-                    +----------------+
-                            |
-                            | Uses
-                            v
-                +-----------------------+
-                | AuthenticationService |
-                +-----------------------+
-                | + authenticate()      |
-                +-----------------------+
-                            |
-                            v
-                    +----------------+
-                    | UserRepository |
-                    +----------------+
-                    | + findById()   |
-                    | + save()       |
-                    +----------------+
+CREATED
+   ↓
+PAYMENT_PENDING
+   ├─→ PAID
+   └─→ PAYMENT_FAILED
+          ↓
+       CANCELLED
 ```
 
----
+Invalid transitions must be rejected.
 
-### HLD vs LLD
+## Interfaces
 
-| Feature  | High-Level Design (HLD)   | Low-Level Design (LLD)        |
-| -------- | ------------------------- | ----------------------------- |
-| Focus    | Overall architecture      | Internal component design     |
-| Answers  | **What** to build         | **How** to build              |
-| Level    | High                      | Detailed                      |
-| Includes | Services, APIs, Databases | Classes, Methods, Interfaces  |
-| Diagrams | Architecture Diagram      | Class, Sequence, UML Diagrams |
-| Audience | Architects, Tech Leads    | Developers                    |
-| Output   | System Blueprint          | Code Blueprint                |
+```java
+interface OrderRepository {
+    Optional<Order> findById(OrderId id);
+    void save(Order order);
+}
 
----
+interface PaymentClient {
+    PaymentResult authorize(
+        OrderId orderId,
+        Money amount,
+        IdempotencyKey key,
+        Duration timeout
+    );
+}
+```
 
-# Real-world Examples
+A useful contract makes remote-failure semantics visible.
 
-### 1. Parking Lot System
+## Domain Invariant
 
-**Classes:**
+```java
+final class Order {
+    private OrderStatus status;
 
-* `ParkingLot`
-* `ParkingFloor`
-* `ParkingSpot`
-* `Vehicle`
-* `Ticket`
-* `Payment`
+    void markPaid() {
+        if (status != OrderStatus.PAYMENT_PENDING) {
+            throw new InvalidOrderTransition();
+        }
+        status = OrderStatus.PAID;
+    }
+}
+```
 
-**Design Patterns:** Singleton, Strategy
+## Concurrency
 
-### 2. Library Management System
+If two requests can modify the same state, define:
 
-**Classes:**
+- atomic DB update;
+- optimistic version;
+- lock;
+- serialized executor;
+- immutable event stream.
 
-* `Book`
-* `Member`
-* `Librarian`
-* `BookIssue`
-* `Fine`
-* `Catalog`
+Do not assume single-threaded execution if production does not guarantee it.
 
-**Concepts Used:** Inheritance, Composition
+## Error Model
 
-### 3. Food Delivery System
+Differentiate:
 
-**Classes:**
+```text
+validation error
+conflict
+not found
+dependency timeout
+retryable infrastructure error
+permanent business failure
+```
 
-* `User`
-* `Restaurant`
-* `Menu`
-* `Order`
-* `DeliveryPartner`
-* `Payment`
+Do not convert every error to HTTP 500.
 
-**Design Patterns:** Factory, Strategy
+## Persistence Boundary
 
-### 4. ATM System
+Keep ownership explicit:
 
-**Classes:**
+```text
+domain/service
+     ↓
+repository/data access
+     ↓
+database
+```
 
-* `ATM`
-* `Account`
-* `Card`
-* `Transaction`
-* `CashDispenser`
+Do not add layers mechanically.
 
-**Concepts Used:** State Pattern, Encapsulation
+## Design Patterns
 
----
+Useful when they solve a concrete variation:
 
-# Best Practices
+- Strategy;
+- Adapter;
+- Factory;
+- Observer/eventing.
 
-* Follow **SOLID Principles**.
-* Prefer **composition over inheritance**.
-* Keep classes **small and focused** (Single Responsibility).
-* Program to **interfaces**, not implementations.
-* Use appropriate **Design Patterns** (Factory, Singleton, Strategy, Observer, Builder).
-* Keep methods short and meaningful.
-* Write reusable and maintainable code.
-* Use proper naming conventions.
-* Design for extensibility and testability.
+Avoid defaulting to Singleton or deep inheritance hierarchies.
 
----
+## Testing
 
-# Common Mistakes
+Separate:
 
-* Creating **God Classes** (one class doing everything).
-* Tight coupling between classes.
-* Violating SOLID principles.
-* Excessive inheritance instead of composition.
-* Ignoring interfaces and abstractions.
-* Overusing design patterns where simple code is sufficient.
-* Writing long methods with multiple responsibilities.
-* Poor naming of classes and methods.
-* Ignoring edge cases and error handling.
+- deterministic rules;
+- external I/O;
+- time/randomness;
+- persistence;
+- side effects.
 
----
+Test invalid transitions and concurrency conflicts.
 
-# Key Takeaways
+## HLD vs LLD
 
-1. **LLD focuses on implementation**—it defines classes, objects, methods, and their interactions.
-2. **Use Object-Oriented Design principles** (SOLID, encapsulation, abstraction, inheritance, polymorphism) to build maintainable software.
-3. **Design Patterns** solve recurring design problems and improve code flexibility and reusability.
-4. **Loose coupling and high cohesion** make systems easier to extend, test, and maintain.
-5. A good LLD should be **readable, scalable, reusable, and easy to modify** without impacting unrelated components.
+| HLD | LLD |
+|---|---|
+| Service/data boundaries | Module/class boundaries |
+| Network/storage choices | Interfaces/algorithms |
+| Scaling/failure domains | Local concurrency/errors |
+| Distributed consistency | State invariants |
+| Evolution | Implementation extensibility |
+
+## Common Mistakes
+
+- “LLD = UML”;
+- forcing every design into inheritance;
+- patterns before responsibilities;
+- giant service classes;
+- mutable state with no concurrency rule;
+- hidden remote calls that look cheap/local.
+
+## 2-Minute Interview Answer
+
+> “For LLD I start with responsibilities and invariants, define the state model and interfaces, then separate domain logic from external I/O. I make concurrency, timeout, error, and persistence semantics explicit. I prefer composition and simple modules, adding patterns only for a concrete variation or integration problem.”

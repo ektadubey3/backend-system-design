@@ -1,289 +1,206 @@
 # Availability
 
-Availability is the ability of a system to remain operational and accessible to users, even in the presence of failures. A highly available system minimizes downtime and ensures that users can continue accessing services without interruption.
+Availability is the ability of a service to successfully serve an eligible operation when it is needed.
 
-Availability is typically measured as a percentage of uptime over a given period. For example, an availability of **99.99%** means the system is operational for 99.99% of the time.
+“Uptime” is a useful approximation, but modern services should measure availability through a **service-level indicator (SLI)** that reflects successful user-facing work.
 
----
+## Interview TL;DR
 
-## Why and When Should You Use It?
+1. Define availability per critical operation, not only per host or process.
+2. Prefer an SLI such as `successful eligible requests / eligible requests`.
+3. Separate **SLI**, **SLO**, and **SLA**.
+4. Redundancy improves availability only when replicas do not share the same failure mode.
+5. Failover needs detection, routing, state safety, and recovery—not only a spare server.
+6. Overload is an availability failure mode.
+7. Graceful degradation may preserve critical operations while dropping optional work.
+8. Multi-region designs add data-consistency and operational complexity.
+9. Replication is not backup.
+10. Availability and reliability overlap but are not interchangeable.
 
-System downtime can lead to revenue loss, poor user experience, and reduced customer trust. High availability ensures that services remain accessible despite hardware failures, software bugs, network outages, or maintenance activities.
+## SLI, SLO, SLA
 
-High availability should be prioritized when building systems that:
+### SLI
 
-* Serve a large number of users
-* Require 24/7 operation
-* Process financial transactions
-* Provide healthcare or emergency services
-* Support critical business operations
-* Have strict Service Level Agreements (SLAs)
+What you measure.
 
-Examples include banking systems, e-commerce platforms, cloud services, streaming platforms, and messaging applications.
+```text
+successful checkout requests
+----------------------------
+eligible checkout requests
+```
 
----
+### SLO
 
-# Core Concepts
+The engineering target.
 
-## Uptime
+```text
+99.95% successful checkout operations over 30 days
+```
 
-Uptime represents the amount of time a system remains operational.
+### SLA
 
-Example:
+A customer/business commitment that may include contractual consequences.
 
-* 99% Availability
-* 99.9% Availability
-* 99.99% Availability
-* 99.999% Availability (Five Nines)
+## “Nines”
 
-Higher availability generally requires greater architectural complexity and cost.
+Approximate downtime budget if availability were measured purely by time:
 
----
+| Availability | Approx. downtime/year |
+|---|---:|
+| 99% | 3.65 days |
+| 99.9% | 8.76 hours |
+| 99.99% | 52.6 minutes |
+| 99.999% | 5.26 minutes |
 
-## Downtime
+Real service SLOs are often request-based.
 
-Downtime is the period during which a service is unavailable.
+## Failure Domains
 
-Approximate yearly downtime:
+Think in layers:
 
-| Availability | Maximum Downtime/Year |
-| ------------ | --------------------: |
-| 99%          |             3.65 days |
-| 99.9%        |            8.76 hours |
-| 99.99%       |          52.6 minutes |
-| 99.999%      |          5.26 minutes |
+```text
+process
+host
+rack
+availability zone
+region
+provider/control plane
+dependency
+```
 
----
+Redundancy must span the failure domains the requirement cares about.
 
-## Redundancy
+## Dependency Availability
 
-Redundancy involves maintaining duplicate components so that if one component fails, another can immediately take over.
+A synchronous path:
 
-Examples:
+```text
+API → Service A → Service B → Database
+```
 
-* Multiple application servers
-* Multiple databases
-* Backup network connections
-* Redundant storage
+can be less available than any individual component because all required dependencies must succeed.
 
----
+Reduce unnecessary synchronous dependencies.
 
 ## Failover
 
-Failover is the automatic process of switching from a failed component to a healthy backup.
+A complete failover includes:
 
-Types:
+```text
+detect failure
+      ↓
+establish healthy authority
+      ↓
+route traffic
+      ↓
+prevent split brain
+      ↓
+recover capacity
+      ↓
+rejoin safely
+```
 
-* Active-Passive Failover
-* Active-Active Failover
+A secondary merely existing is not enough.
 
----
-
-## Elimination of Single Point of Failure (SPOF)
-
-A Single Point of Failure is any component whose failure can bring down the entire system.
-
-Examples:
-
-* Single database server
-* Single load balancer
-* Single application server
-
-Highly available systems eliminate SPOFs by introducing redundancy.
-
----
-
-## Health Checks
-
-Health checks continuously monitor the status of services.
-
-If a service becomes unhealthy, traffic is redirected to healthy instances automatically.
-
-Health checks can be:
-
-* Liveness Checks
-* Readiness Checks
-
----
-
-## Replication
-
-Replication creates multiple copies of data across different servers or regions.
+## Active-Passive
 
 Benefits:
 
-* Higher availability
-* Disaster recovery
-* Read scalability
+- simpler write ownership;
+- simpler conflict model.
 
----
+Costs:
 
-# Architecture
+- unused capacity;
+- failover time;
+- cold-cache/warm-up risk.
 
-A simple highly available architecture looks like:
+## Active-Active
+
+Benefits:
+
+- serving capacity is already active;
+- potentially faster traffic failover.
+
+Costs:
+
+- data ownership/conflict complexity;
+- larger operational surface;
+- harder testing.
+
+Active-active application servers do not imply active-active database writes.
+
+## Overload
+
+A healthy process can still be unavailable if queues grow until requests time out.
+
+Use:
+
+- bounded queues;
+- admission control;
+- load shedding;
+- deadlines;
+- concurrency limits;
+- priority classes.
+
+## Graceful Degradation
 
 ```text
-                     Users
-                       │
-                   DNS / CDN
-                       │
-                Load Balancer
-                ┌──────┴──────┐
-                │             │
-          App Server 1    App Server 2
-                │             │
-                └──────┬──────┘
-                       │
-               Redis Cache Cluster
-                       │
-                Primary Database
-                │             │
-           Read Replica   Read Replica
+Preserve:
+- login
+- cart
+- checkout
+
+Degrade:
+- recommendations
+- analytics
+- personalization
 ```
 
----
+## Health Checks
 
-## Pros
+Separate:
 
-* High system uptime
-* Better user experience
-* Fault tolerance
-* Reduced business impact during failures
-* Supports maintenance with minimal downtime
-* Improved customer trust
+- **liveness**: should the process be restarted?
+- **readiness**: should it receive traffic?
 
-## Cons
+Avoid making readiness depend on every optional dependency.
 
-* Increased infrastructure cost
-* More complex architecture
-* Data synchronization challenges
-* Additional monitoring requirements
-* More operational overhead
+## Multi-Region
 
----
+Use only when the requirement justifies:
 
-# Comparison
+- extra cost;
+- replication;
+- consistency decisions;
+- traffic steering;
+- data residency;
+- failover testing.
 
-## Availability vs Reliability
+State write ownership explicitly.
 
-| Feature     | Availability                  | Reliability                                   |
-| ----------- | ----------------------------- | --------------------------------------------- |
-| Definition  | Ability to remain operational | Ability to perform correctly without failures |
-| Focus       | Minimizing downtime           | Preventing failures                           |
-| Goal        | Keep the service accessible   | Ensure consistent and correct operation       |
-| Measured By | Uptime percentage             | Mean Time Between Failures (MTBF)             |
+## Availability vs Durability
 
----
+A service can be available while losing acknowledged data.
 
-## Active-Active vs Active-Passive Failover
+A service can be unavailable while preserving every committed write.
 
-| Feature              | Active-Active             | Active-Passive               |
-| -------------------- | ------------------------- | ---------------------------- |
-| Active Servers       | Multiple                  | One                          |
-| Traffic Handling     | Shared across all servers | Only primary handles traffic |
-| Failover Time        | Near instant              | Slight delay                 |
-| Resource Utilization | High                      | Lower                        |
-| Complexity           | Higher                    | Lower                        |
+Treat the properties separately.
 
----
+## Common Mistakes
 
-# Real-world Examples
+- measuring “process up” instead of successful operations;
+- calling replicas backups;
+- assuming redundant components fail independently;
+- health checks that trigger cascades;
+- retrying overload;
+- multi-region without a data model.
 
-### Netflix
+## Interview Answer Template
 
-* Deploys services across multiple Availability Zones and regions.
-* Automatically redirects traffic if an instance or region becomes unavailable.
+> “I’ll define availability for the critical operation as a request-based SLI and give optional features lower criticality. I’ll isolate failure domains and protect overload with bounded queues and load shedding. Stateful failover needs explicit authority and fencing. I only add multi-region if the regional-failure requirement justifies the consistency and operational cost.”
 
-### Amazon
+## References
 
-* Uses multiple Availability Zones for EC2, RDS, and other cloud services to minimize downtime.
-
-### Google Search
-
-* Replicates search indexes across data centers worldwide to ensure uninterrupted search availability.
-
-### WhatsApp
-
-* Uses replicated backend infrastructure to keep messaging services available even during server failures.
-
----
-
-# Best Practices
-
-* Eliminate all Single Points of Failure (SPOFs)
-* Deploy multiple application instances
-* Use load balancers with health checks
-* Replicate databases across multiple nodes
-* Perform automatic failover whenever possible
-* Use distributed caches instead of local caches
-* Monitor system health continuously
-* Perform regular backup and disaster recovery testing
-* Deploy services across multiple Availability Zones or regions
-* Design applications to be stateless
-
----
-
-# Common Mistakes
-
-* Relying on a single database server
-* Assuming backups alone provide high availability
-* Ignoring health checks
-* Not testing failover mechanisms
-* Keeping application state on individual servers
-* Deploying all services in a single Availability Zone
-* Neglecting monitoring and alerting
-* Failing to eliminate Single Points of Failure
-
----
-
-# Interview Questions
-
-#### 1. What does availability mean?
-
-**Answer:**
-Availability is the ability of a system to remain operational and accessible to users, even when failures occur. It is commonly measured as the percentage of uptime over a period of time.
-
----
-
-#### 2. What is the difference between availability and reliability?
-
-**Answer:**
-Availability measures whether a system is accessible, whereas reliability measures whether it performs correctly without failures. A system can be highly available but still unreliable if it frequently returns incorrect results.
-
----
-
-#### 3. What is a Single Point of Failure (SPOF)?
-
-**Answer:**
-A Single Point of Failure is a component whose failure causes the entire system to become unavailable. Examples include a single database server or a single application server without redundancy.
-
----
-
-#### 4. How do you improve system availability?
-
-**Answer:**
-Common techniques include:
-
-* Redundancy
-* Load balancing
-* Database replication
-* Automatic failover
-* Health checks
-* Multi-region deployment
-* Distributed caching
-* Stateless application design
-
----
-
-#### 5. What is the difference between Active-Active and Active-Passive architectures?
-
-**Answer:**
-In an Active-Active architecture, multiple servers simultaneously handle user traffic, improving both availability and scalability. In an Active-Passive architecture, only the primary server handles traffic while the standby server remains idle until a failure occurs.
-
----
-
-# Key Takeaways
-
-* Availability ensures a system remains accessible despite hardware, software, or network failures by eliminating single points of failure and introducing redundancy.
-* High availability is achieved through techniques such as load balancing, replication, health checks, failover mechanisms, and multi-zone or multi-region deployments.
-* Improving availability increases system resilience and user satisfaction but also introduces additional architectural complexity and operational cost.
+- [Google SRE — Service Level Objectives](https://sre.google/sre-book/service-level-objectives/)
+- [Google SRE — Handling Overload](https://sre.google/sre-book/handling-overload/)
