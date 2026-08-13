@@ -75,7 +75,7 @@ Do not turn an architecture decision into a slogan.
 
 ---
 
-# Decision Framework
+## Decision Framework
 
 Use this table during an interview.
 
@@ -94,7 +94,7 @@ Use this table during an interview.
 
 ---
 
-# 1. Consistency vs Availability
+## 1. Consistency vs Availability
 
 This trade-off is most precise when discussed **during communication failure**.
 
@@ -122,7 +122,7 @@ See [CAP Theorem](cap-theorem.md).
 
 ---
 
-# 2. Latency vs Freshness / Consistency
+## 2. Latency vs Freshness / Consistency
 
 A local replica can often respond faster than a globally coordinated read.
 
@@ -155,9 +155,9 @@ Do not use invented latency numbers as universal facts. State them as assumption
 
 ---
 
-# 3. Read Optimization vs Write Optimization
+## 3. Read Optimization vs Write Optimization
 
-### Read-optimized techniques
+#### Read-optimized techniques
 
 - caches
 - replicas
@@ -174,7 +174,7 @@ Costs may include:
 - storage duplication
 - complex rebuilds
 
-### Write-optimized techniques
+#### Write-optimized techniques
 
 - append-oriented storage
 - batching
@@ -193,7 +193,7 @@ The right answer depends on the read/write shape, not the product name.
 
 ---
 
-# 4. SQL vs NoSQL
+## 4. SQL vs NoSQL
 
 This should **not** be taught as:
 
@@ -204,7 +204,7 @@ NoSQL = scalability
 
 Both families contain systems with very different consistency, transaction, and scaling behavior.
 
-## Relational databases are attractive when
+### Relational databases are attractive when
 
 - relationships and constraints matter
 - transactions span related records
@@ -212,14 +212,14 @@ Both families contain systems with very different consistency, transaction, and 
 - schema semantics are valuable
 - mature tooling is useful
 
-## Non-relational models are attractive when
+### Non-relational models are attractive when
 
 - access patterns fit key-value/document/wide-column semantics
 - partition-local operations dominate
 - schema flexibility is valuable
 - a specialized storage model materially improves workload fit
 
-## Real decision criteria
+### Real decision criteria
 
 Ask:
 
@@ -240,11 +240,11 @@ The label alone does not answer the design question.
 
 ---
 
-# 5. Monolith vs Microservices
+## 5. Monolith vs Microservices
 
 A modular monolith is often the best starting point when the organization does not yet need independent operational boundaries.
 
-## Monolith / modular monolith
+### Monolith / modular monolith
 
 **Benefits**
 
@@ -260,7 +260,7 @@ A modular monolith is often the best starting point when the organization does n
 - independent scaling can be harder
 - ownership can deteriorate without module boundaries
 
-## Microservices
+### Microservices
 
 **Benefits**
 
@@ -287,9 +287,9 @@ The key question is:
 
 ---
 
-# 6. Vertical vs Horizontal Scaling
+## 6. Vertical vs Horizontal Scaling
 
-## Vertical scaling
+### Vertical scaling
 
 Increase resources on a node.
 
@@ -312,7 +312,7 @@ Increase resources on a node.
 - cost curve
 - maintenance/failover implications
 
-## Horizontal scaling
+### Horizontal scaling
 
 Add nodes.
 
@@ -354,7 +354,7 @@ Eventually bottlenecks move to:
 
 ---
 
-# 7. Cache Speed vs Freshness and Complexity
+## 7. Cache Speed vs Freshness and Complexity
 
 Caching can reduce latency and database load.
 
@@ -388,9 +388,9 @@ is high enough to justify the consistency and operational complexity.
 
 ---
 
-# 8. Normalization vs Denormalization
+## 8. Normalization vs Denormalization
 
-## Normalization
+### Normalization
 
 **Gain**
 
@@ -404,7 +404,7 @@ is high enough to justify the consistency and operational complexity.
 - more read-time composition
 - potentially more round trips in distributed ownership models
 
-## Denormalization
+### Denormalization
 
 **Gain**
 
@@ -422,9 +422,9 @@ Denormalization is often a deliberate read model, not “bad schema design.”
 
 ---
 
-# 9. Synchronous vs Asynchronous Work
+## 9. Synchronous vs Asynchronous Work
 
-## Synchronous
+### Synchronous
 
 ```text
 Request
@@ -446,7 +446,7 @@ return final result
 - dependency failures propagate
 - limited tolerance for slow work
 
-## Asynchronous
+### Asynchronous
 
 ```text
 Request
@@ -478,7 +478,7 @@ Good candidates specify what must be durable before acknowledging the user.
 
 ---
 
-# 10. Durability vs Latency
+## 10. Durability vs Latency
 
 A write can be acknowledged after different durability points:
 
@@ -507,7 +507,7 @@ Avoid “disk = durable” as the whole answer; hardware, filesystems, replicati
 
 ---
 
-# 11. Cost vs Reliability
+## 11. Cost vs Reliability
 
 Reliability improvements are not free.
 
@@ -530,7 +530,7 @@ Do not deploy multi-region active-active simply because it sounds highly availab
 
 ---
 
-# 12. Simplicity vs Flexibility
+## 12. Simplicity vs Flexibility
 
 Abstractions and generic platforms often improve reuse but create:
 
@@ -543,9 +543,9 @@ Prefer the simplest design that leaves a credible evolution path.
 
 ---
 
-# 13. Push vs Pull
+## 13. Push vs Pull
 
-## Push
+### Push
 
 Useful when freshness matters.
 
@@ -562,7 +562,7 @@ Costs:
 - backpressure
 - delivery tracking
 
-## Pull
+### Pull
 
 Useful when consumers control pace.
 
@@ -582,11 +582,11 @@ Hybrid systems are common.
 
 ---
 
-# 14. Partitioning vs Replication
+## 14. Partitioning vs Replication
 
 These solve different problems.
 
-### Replication
+#### Replication
 
 Copies data.
 
@@ -596,7 +596,7 @@ Primary goals:
 - read distribution
 - disaster recovery
 
-### Partitioning/sharding
+#### Partitioning/sharding
 
 Splits data.
 
@@ -610,7 +610,7 @@ A system often needs both.
 
 ---
 
-# 15. Build vs Buy
+## 15. Build vs Buy
 
 Evaluate:
 
@@ -628,7 +628,7 @@ A managed service can be the more scalable engineering decision if it removes un
 
 ---
 
-# Decision Matrix Example — URL Shortener
+## Decision Matrix Example — URL Shortener
 
 Suppose:
 
@@ -676,7 +676,7 @@ The interview signal is the evolution reasoning, not the database brand.
 
 ---
 
-# Strong Interview Language
+## Strong Interview Language
 
 Weak:
 
@@ -704,7 +704,7 @@ Better:
 
 ---
 
-# Common Interview Mistakes
+## Common Interview Mistakes
 
 - Treating technologies as architecture goals
 - Saying “scalable” without naming the bottleneck
@@ -720,7 +720,7 @@ Better:
 
 ---
 
-# Trade-off Checklist
+## Trade-off Checklist
 
 For each major box in the architecture, ask:
 
@@ -736,7 +736,7 @@ At what scale would the design change?
 
 ---
 
-# Key Takeaways
+## Key Takeaways
 
 1. Architecture decisions are conditional on requirements.
 2. Avoid false binary comparisons.

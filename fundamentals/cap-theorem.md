@@ -417,14 +417,16 @@ Possible designs:
 
 Only one region owns writes.
 
-**Gain:** simple correctness model.  
+**Gain:** simple correctness model.
+
 **Cost:** cross-region latency and lower write availability during region failure.
 
 ### Option 2 — Consensus/quorum replication
 
 A write succeeds only when enough replicas coordinate.
 
-**Gain:** strong consistency across replicas.  
+**Gain:** strong consistency across replicas.
+
 **Cost:** latency and unavailability when quorum cannot be reached.
 
 ### Option 3 — Partition inventory
@@ -438,7 +440,8 @@ Region B owns 40
 
 Each region can make local decisions within its allocation.
 
-**Gain:** better regional availability.  
+**Gain:** better regional availability.
+
 **Cost:** inventory can become stranded in one region while another sells out.
 
 This is the kind of trade-off discussion interviewers want.
