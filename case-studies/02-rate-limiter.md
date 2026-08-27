@@ -13,6 +13,34 @@ Design a rate limiter for a public API used by many application servers across m
 - Add minimal latency to the request path.
 - Fail in a deliberate way if the limiter dependency is unhealthy.
 
+## Back-of-the-Envelope Estimates
+
+Assume 1 million requests/second at peak, 10 million active limit keys in a peak window, and a 1 ms target for a colocated decision.
+
+```text
+counter operations ~= one atomic decision per request ~= 1M/s
+active state floor ~= 10M * (key + counters + expiry metadata)
+```
+
+At this scale, one global counter service or cross-region round trip is not credible. Regional enforcement, partitioned hot-key-aware state, and local coarse protection become architectural requirements.
+
+## API and Policy Contracts
+
+```text
+check(subject, route, cost, policy_version) ->
+  {allowed, remaining, retry_after, decision_id, policy_version}
+```
+
+Configuration is versioned and distributed separately from the high-rate decision path. A decision log samples ordinary outcomes but durably records policy changes and fail-open/fail-closed events.
+
+## Policy Data Model
+
+```text
+Policy(policy_id, version, subject_scope, route_pattern,
+       algorithm, capacity, refill_rate, failure_mode, effective_at)
+Allocation(subject_key, region, leased_tokens, expires_at, epoch)
+```
+
 ## Where It Runs
 
 Common placements:
@@ -169,6 +197,22 @@ Track:
 ## Trade-offs
 
 Rate limiting is not just an algorithm question. The important design decisions are enforcement scope, atomicity, acceptable overshoot, failure policy, and hot-key behavior.
+
+## Request Walkthrough
+
+The gateway resolves a cached versioned policy, forms the subject key, and performs one atomic token-bucket decision on the owning partition. Allowed requests continue with decision context; rejected requests return `429` and a bounded retry hint. If the store is slow, a local emergency bucket protects the backend and the endpoint-specific fail policy decides whether traffic continues. Policy refresh never replaces a newer version with an older one.
+
+## Bottlenecks and Evolution Triggers
+
+- Central store latency or availability dominates: move to regional budgets with bounded overshoot.
+- One tenant becomes a hot key: allocate hierarchical tenant/route budgets or lease tokens to gateway cells.
+- Limits must react to backend saturation: add a separate adaptive concurrency controller; avoid silently changing contractual quotas.
+- Monthly billing enforcement appears: keep a durable usage ledger and reconciliation path; the fast limiter remains an admission estimate.
+- Configuration fleet is large: use signed/versioned snapshots, staged rollout, and rollback with policy-decision audit.
+
+## Interview Check
+
+State the maximum possible overshoot under concurrency and regional leasing, whether enforcement is a security or fairness boundary, and why fail-open versus fail-closed must be selected per operation rather than globally.
 
 ## Follow-ups
 

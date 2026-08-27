@@ -30,6 +30,19 @@ Design a service that converts a long URL into a short URL and redirects users f
 - Redirects may tolerate short-lived cache staleness if mappings are immutable.
 - Analytics must not block redirects.
 
+## Back-of-the-Envelope Estimates
+
+Assume 100 million new links/month, a 100:1 redirect-to-create ratio, 500-byte stored records, and five years of retention.
+
+```text
+creates average  ~= 100M / 30 days ~= 39 writes/s
+redirect average ~= 3,900 reads/s; design peak at 10x ~= 39,000 reads/s
+records in 5 y   ~= 6B
+raw mapping data ~= 6B * 500 B ~= 3 TB before indexes/replicas
+```
+
+The read/write asymmetry justifies a cache and CDN-friendly redirect path. The dataset size and hot-link skew matter more than average create throughput.
+
 ## APIs
 
 ```http
@@ -171,6 +184,22 @@ Track:
 ## Trade-offs
 
 The key design choice is optimizing the read path without making cache availability a hard dependency. The database remains the source of truth; the cache is an acceleration layer.
+
+## Request Walkthrough
+
+For a redirect, the edge routes by geography, the service validates the code format, reads a positive or short negative cache entry, and falls back to the authoritative store on miss. It checks expiry before returning the redirect. A click event with code, coarse client context, event ID, and occurrence time is published asynchronously under a strict time budget; analytics failure never changes the redirect outcome.
+
+## Bottlenecks and Evolution Triggers
+
+- Cache hit ratio falls or store read latency threatens the redirect SLO: add request coalescing, prewarming for known hot links, and cache isolation.
+- One link exceeds a cache node or region: replicate that key broadly and serve at the edge; keep analytics sampling/aggregation separate.
+- Store size or write maintenance exceeds one partition: hash-partition by code and version routing for online movement.
+- Editable links become common: replace effectively immutable long TTLs with versioned invalidation and reconsider `301` caching semantics.
+- Global availability requires regional writes: give each code one home authority or allocate collision-free code namespaces; define failover ownership.
+
+## Interview Check
+
+Explain why short-lived negative caching is useful but dangerous immediately after create, why a cache outage needs database admission control, and why globally unique IDs do not by themselves solve regional ownership.
 
 ## Follow-ups
 
