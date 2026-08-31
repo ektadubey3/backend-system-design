@@ -26,3 +26,8 @@ For every case study:
 ## Decision Frameworks
 
 - [Database Selection Framework](database-selection-framework.md)
+
+## Practice and Deepen
+
+- Work through the complete [Case Study Library](../case-studies/README.md).
+- Use the design frameworks in [Caching](../caching/cache-design-framework.md), [Messaging](../messaging/messaging-design-framework.md), [Distributed Systems](../distributed-systems/distributed-systems-design-framework.md), [Reliability](../reliability/reliability-design-framework.md), [Security](../security/security-design-framework.md), [Observability](../observability/observability-design-framework.md), [Architecture Patterns](../architecture-patterns/architecture-decision-framework.md), and [Cloud Patterns](../cloud-patterns/cloud-design-framework.md).

@@ -2,18 +2,19 @@
 
 > An interview-focused backend system design handbook for experienced engineers: fundamentals, networking, databases, distributed systems, production trade-offs, and complete design exercises.
 
-This repository is a living knowledge base for **Senior Backend Engineer and System Design interviews**. The goal is not to memorize products or architecture diagrams. The goal is to learn how to reason from requirements to APIs, data models, scaling decisions, failure handling, consistency guarantees, observability, and trade-offs.
+This repository is a living knowledge base for **Senior Backend Engineer and System Design interviews**. The goal is not to memorize products or architecture diagrams. The goal is to reason from requirements to APIs, data models, consistency boundaries, scaling decisions, failure handling, observability, security, operations, and trade-offs.
 
 ## Start Here
 
 If you are preparing for interviews, use this order:
 
-1. Review the [System Design Fundamentals](fundamentals/).
-2. Learn the [45-minute interview framework](interview/45-minute-framework.md).
-3. Practice [capacity estimation](interview/capacity-estimation.md) and [decision frameworks](interview/decision-frameworks.md).
-4. Attempt the [URL Shortener](case-studies/01-url-shortener.md) and [Rate Limiter](case-studies/02-rate-limiter.md) without reading the solutions first.
-5. Score yourself using the [interview rubric](interview/scoring-rubric.md).
-6. Repeat with the [question bank](interview/question-bank.md).
+1. Review [System Design Fundamentals](fundamentals/) and the [45-minute interview framework](interview/45-minute-framework.md).
+2. Practice [capacity estimation](interview/capacity-estimation.md) and [decision frameworks](interview/decision-frameworks.md).
+3. Learn the core backend stack: [Networking](networking/), [Databases](databases/), [Caching](caching/README.md), and [Messaging](messaging/README.md).
+4. Add distributed and production reasoning: [Distributed Systems](distributed-systems/README.md), [Reliability](reliability/README.md), [Security](security/README.md), and [Observability](observability/README.md).
+5. Connect the choices through [Architecture Patterns](architecture-patterns/README.md) and [Cloud Patterns](cloud-patterns/README.md).
+6. Attempt the [case studies](case-studies/) without reading the model answers, then score yourself with the [rubric](interview/scoring-rubric.md).
+7. Repeat with the [question bank](interview/question-bank.md) and each curriculum's design framework.
 
 ## What Strong System Design Answers Demonstrate
 
@@ -43,23 +44,23 @@ The repository therefore emphasizes **why** a design is chosen, what it costs, h
 
 ## Curriculum Status
 
-The README distinguishes between content that exists today and content that is planned. Planned sections are not represented as completed material.
+Every available area has a landing page or established section index. The documentation-site tooling remains intentionally deferred in the [roadmap](ROADMAP.md).
 
 | Area | Status | Entry point |
 |---|---|---|
 | Fundamentals | ✅ Available | [Browse](fundamentals/) |
 | Networking | ✅ Available | [Browse](networking/) |
-| Databases | 🚧 In progress | [Browse](databases/) |
+| Databases | ✅ Available | [Browse](databases/) |
 | Interview preparation | ✅ Available | [Browse](interview/) |
-| Case studies | 🚧 In progress | [Browse](case-studies/) |
-| Caching | 📋 Planned | [Roadmap](ROADMAP.md) |
-| Messaging | 📋 Planned | [Roadmap](ROADMAP.md) |
-| Distributed systems | 📋 Planned | [Roadmap](ROADMAP.md) |
-| Reliability engineering | 📋 Planned | [Roadmap](ROADMAP.md) |
-| Security | 📋 Planned | [Roadmap](ROADMAP.md) |
-| Observability | 📋 Planned | [Roadmap](ROADMAP.md) |
-| Architecture patterns | 📋 Planned | [Roadmap](ROADMAP.md) |
-| Cloud & infrastructure | 📋 Planned | [Roadmap](ROADMAP.md) |
+| Case studies | ✅ Available | [Browse](case-studies/) |
+| Caching | ✅ Available | [Browse](caching/README.md) |
+| Messaging | ✅ Available | [Browse](messaging/README.md) |
+| Distributed systems | ✅ Available | [Browse](distributed-systems/README.md) |
+| Reliability engineering | ✅ Available | [Browse](reliability/README.md) |
+| Security | ✅ Available | [Browse](security/README.md) |
+| Observability | ✅ Available | [Browse](observability/README.md) |
+| Architecture patterns | ✅ Available | [Browse](architecture-patterns/README.md) |
+| Cloud & infrastructure | ✅ Available | [Browse](cloud-patterns/README.md) |
 
 ## Existing Fundamentals
 
@@ -126,12 +127,18 @@ The interview layer is deliberately separate from encyclopedic topic notes.
 
 ## Case Studies
 
-Start with a small number of complete designs instead of many shallow examples.
+Use the [case-study index](case-studies/README.md) for ten complete model designs, from URL shortening and rate limiting through payments, booking, analytics, and video streaming. Each follows the same requirements-to-evolution answer shape.
 
-- [URL Shortener](case-studies/01-url-shortener.md)
-- [Distributed Rate Limiter](case-studies/02-rate-limiter.md)
+## Advanced Curriculum
 
-Future case studies are prioritized in [ROADMAP.md](ROADMAP.md).
+- [Caching](caching/README.md)
+- [Messaging Systems](messaging/README.md)
+- [Distributed Systems](distributed-systems/README.md)
+- [Reliability Engineering](reliability/README.md)
+- [Security Architecture](security/README.md)
+- [Observability](observability/README.md)
+- [Architecture Patterns](architecture-patterns/README.md)
+- [Cloud Architecture Patterns](cloud-patterns/README.md)
 
 ## Content Standard
 
