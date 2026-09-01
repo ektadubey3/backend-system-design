@@ -17,3 +17,9 @@ Recommended order:
 13. [Low-Level Design](lld.md)
 
 For interview preparation, do not treat these topics as isolated definitions. Practice using each concept to justify a design decision.
+
+## Continue the Curriculum
+
+- Apply CAP/PACELC and failure reasoning in [Distributed Systems](../distributed-systems/README.md).
+- Turn fault-tolerance mechanisms into an operational strategy in [Reliability Engineering](../reliability/README.md).
+- Use the concepts under time pressure with the [45-Minute Interview Framework](../interview/45-minute-framework.md).
