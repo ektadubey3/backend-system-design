@@ -26,3 +26,10 @@ Do not answer “SQL or NoSQL?” based on category labels. Start with the opera
 ## Cross-System Consistency
 
 - [Data Consistency Boundaries](consistency-boundaries.md)
+
+## Related Curricula
+
+- [Messaging Systems](../messaging/README.md) applies transactions, outbox, CDC, and idempotency across asynchronous boundaries.
+- [Distributed Systems](../distributed-systems/README.md) generalizes replication, quorums, partitioning, consensus, and ownership.
+- [Caching](../caching/README.md) treats databases as authoritative origins and makes staleness/fallback explicit.
+- [Payment System](../case-studies/07-payment-system.md) and [Ticket Booking](../case-studies/08-ticket-booking.md) apply transactional invariants under external failure and contention.

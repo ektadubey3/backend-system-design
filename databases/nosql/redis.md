@@ -23,7 +23,7 @@ For system design interviews, the key is not memorizing Redis commands. It is un
 
 ---
 
-# 1. Where Redis Fits
+## 1. Where Redis Fits
 
 A common cache-aside architecture is:
 
@@ -49,7 +49,7 @@ Do not assume every Redis deployment is “just a cache.”
 
 ---
 
-# 2. Common Uses
+## 2. Common Uses
 
 Redis is frequently used for:
 
@@ -71,9 +71,9 @@ Each use case has different correctness requirements.
 
 ---
 
-# 3. Core Data Structures
+## 3. Core Data Structures
 
-## Strings
+### Strings
 
 Useful for:
 
@@ -87,7 +87,7 @@ SET product:1001:price 5999
 GET product:1001:price
 ```
 
-## Hashes
+### Hashes
 
 Useful for field-based objects.
 
@@ -95,15 +95,15 @@ Useful for field-based objects.
 HSET user:101 name "Alex" country "India" plan "PRO"
 ```
 
-## Lists
+### Lists
 
 Useful for ordered sequences where list semantics match the access pattern.
 
-## Sets
+### Sets
 
 Useful for uniqueness and membership.
 
-## Sorted Sets
+### Sorted Sets
 
 Useful for:
 
@@ -112,13 +112,13 @@ Useful for:
 - priority-like ordering
 - time-ranked windows
 
-## Streams
+### Streams
 
 Useful for append-oriented event processing where consumers need more than transient Pub/Sub delivery.
 
 ---
 
-# 4. TTL and Expiration
+## 4. TTL and Expiration
 
 TTL is central to many Redis designs.
 
@@ -150,7 +150,7 @@ Use jitter where synchronized expiry could create a traffic spike.
 
 ---
 
-# 5. Cache-Aside
+## 5. Cache-Aside
 
 Typical read path:
 
@@ -186,7 +186,7 @@ async function getProduct(id) {
 
 ---
 
-# 6. Cache Invalidation Is a Consistency Problem
+## 6. Cache Invalidation Is a Consistency Problem
 
 A common write path is:
 
@@ -198,7 +198,7 @@ Delete cache
 
 This is simple, but there are races.
 
-## Example race
+### Example race
 
 1. Request A misses the cache and reads old database value.
 2. Request B updates the database.
@@ -222,7 +222,7 @@ The point is not to memorize one pattern. The point is to recognize that **datab
 
 ---
 
-# 7. Cache Stampede
+## 7. Cache Stampede
 
 A popular key expires:
 
@@ -255,7 +255,7 @@ others wait or use bounded-stale data
 
 ---
 
-# 8. Cache Penetration and Negative Caching
+## 8. Cache Penetration and Negative Caching
 
 Repeated requests for missing records can bypass a cache.
 
@@ -278,7 +278,7 @@ Be careful not to negative-cache a value for so long that newly created data rem
 
 ---
 
-# 9. Memory and Eviction
+## 9. Memory and Eviction
 
 Redis memory is finite.
 
@@ -310,7 +310,7 @@ A cache with no memory policy eventually turns capacity pressure into an inciden
 
 ---
 
-# 10. Hot Keys
+## 10. Hot Keys
 
 Sharding the keyspace does not automatically distribute traffic.
 
@@ -347,23 +347,23 @@ traffic distribution
 
 ---
 
-# 11. Persistence
+## 11. Persistence
 
 Redis can persist data.
 
 Two major mechanisms are:
 
-## RDB snapshots
+### RDB snapshots
 
 Periodic point-in-time snapshots.
 
-## AOF
+### AOF
 
 Records write operations for replay.
 
 The correct configuration depends on the role Redis plays.
 
-### Disposable cache
+#### Disposable cache
 
 If Redis can be rebuilt safely:
 
@@ -371,7 +371,7 @@ If Redis can be rebuilt safely:
 persistence importance = lower
 ```
 
-### Important state
+#### Important state
 
 If Redis contains authoritative or hard-to-recreate state:
 
@@ -393,7 +393,7 @@ Do not equate “Redis has persistence” with “no acknowledged write can be l
 
 ---
 
-# 12. Replication and Failover
+## 12. Replication and Failover
 
 Redis commonly uses primary-replica replication.
 
@@ -424,11 +424,11 @@ For correctness-critical data, ask:
 
 ---
 
-# 13. Redis Sentinel vs Redis Cluster
+## 13. Redis Sentinel vs Redis Cluster
 
 These solve different problems.
 
-## Sentinel-style high availability
+### Sentinel-style high availability
 
 Useful when you need:
 
@@ -438,7 +438,7 @@ Useful when you need:
 
 It does not shard one logical dataset across many primaries.
 
-## Redis Cluster
+### Redis Cluster
 
 Useful when one node is insufficient for:
 
@@ -461,7 +461,7 @@ flowchart TD
 
 ---
 
-# 14. Redis Cluster: Hash Slots and Cross-Slot Constraints
+## 14. Redis Cluster: Hash Slots and Cross-Slot Constraints
 
 In Redis Open Source Cluster, keys map into hash slots.
 
@@ -491,7 +491,7 @@ The data model should minimize cross-slot coordination while preserving good dis
 
 ---
 
-# 15. Atomic Operations
+## 15. Atomic Operations
 
 Redis commands such as:
 
@@ -525,7 +525,7 @@ Cross-system workflows still need:
 
 ---
 
-# 16. Rate Limiting
+## 16. Rate Limiting
 
 Redis is a common rate-limit state store because of atomic operations and TTLs.
 
@@ -552,7 +552,7 @@ A strong interview answer discusses:
 
 ---
 
-# 17. Distributed Locks
+## 17. Distributed Locks
 
 A basic Redis lease might conceptually use:
 
@@ -594,7 +594,7 @@ For interview purposes:
 
 ---
 
-# 18. Sessions
+## 18. Sessions
 
 Redis is useful for server-side session state when:
 
@@ -615,7 +615,7 @@ Do not store more session data than necessary.
 
 ---
 
-# 19. Shopping Cart
+## 19. Shopping Cart
 
 Redis can make cart access fast, but a cart is often more valuable than a disposable cache.
 
@@ -632,7 +632,7 @@ State the business requirement first.
 
 ---
 
-# 20. Flash-Sale Reservations
+## 20. Flash-Sale Reservations
 
 Redis atomic operations can help gate enormous bursts.
 
@@ -659,15 +659,15 @@ Redis can protect the hot path while a durable system owns the final invariant.
 
 ---
 
-# 21. Pub/Sub vs Streams
+## 21. Pub/Sub vs Streams
 
-## Pub/Sub
+### Pub/Sub
 
 Good for transient fan-out where consumers listening at that moment receive messages.
 
 If a subscriber is disconnected, plain Pub/Sub is not a durable backlog.
 
-## Streams
+### Streams
 
 Useful when consumers need:
 
@@ -690,7 +690,7 @@ Evaluate:
 
 ---
 
-# 22. Pipelining and Batching
+## 22. Pipelining and Batching
 
 Network round trips matter.
 
@@ -710,7 +710,7 @@ Do not confuse pipelining with an atomic transaction.
 
 ---
 
-# 23. Redis Failure and Cache Meltdown
+## 23. Redis Failure and Cache Meltdown
 
 A dangerous fallback:
 
@@ -742,7 +742,7 @@ A cache outage should not automatically become a database outage.
 
 ---
 
-# 24. Observability
+## 24. Observability
 
 Monitor at least:
 
@@ -775,18 +775,18 @@ database fallback
 
 ---
 
-# 25. Redis vs Memcached
+## 25. Redis vs Memcached
 
 The useful interview comparison is workload fit.
 
-## Memcached
+### Memcached
 
 Attractive for:
 
 - simple disposable caching
 - minimal data-structure requirements
 
-## Redis
+### Redis
 
 Attractive when you need:
 
@@ -803,7 +803,7 @@ Do not pick Redis solely because it has more features. More capability also mean
 
 ---
 
-# 26. When Not to Use Redis
+## 26. When Not to Use Redis
 
 Do not add Redis automatically when:
 
@@ -828,7 +828,7 @@ It may actually be:
 
 ---
 
-# 27. Senior-Level Decision Checklist
+## 27. Senior-Level Decision Checklist
 
 When Redis appears in a system-design interview, answer:
 
@@ -852,43 +852,43 @@ When Redis appears in a system-design interview, answer:
 
 ---
 
-# 28. Interview Questions
+## 28. Interview Questions
 
-## Why use Redis for caching?
+### Why use Redis for caching?
 
 To reduce repeated expensive reads or computation when the workload has enough locality to produce a useful hit rate.
 
-## What is cache-aside?
+### What is cache-aside?
 
 The application reads Redis first. On miss it reads the source of truth and populates Redis.
 
-## What is a cache stampede?
+### What is a cache stampede?
 
 Many concurrent requests rebuild the same expired/missing hot value, overloading the source.
 
-## Replication vs Cluster?
+### Replication vs Cluster?
 
 Replication copies data for availability/read distribution. Cluster partitions the keyspace for capacity. A cluster can also replicate shards.
 
-## Can acknowledged Redis writes be lost during failover?
+### Can acknowledged Redis writes be lost during failover?
 
 Depending on replication, persistence, and failover configuration, yes. Redis commonly uses asynchronous replication.
 
-## Why can Redis Cluster still have a hot spot?
+### Why can Redis Cluster still have a hot spot?
 
 Traffic can concentrate on one key or one slot even when the total dataset is well distributed.
 
-## Is SET NX enough for a correctness-critical distributed lock?
+### Is SET NX enough for a correctness-critical distributed lock?
 
 Not by itself. Lease expiry and stale clients require careful ownership checks, and correctness-critical external resources should usually use fencing/version checks.
 
-## When should you avoid Redis?
+### When should you avoid Redis?
 
 When it does not solve a measured bottleneck or when its chosen durability/consistency semantics do not meet the workload.
 
 ---
 
-# Key Takeaways
+## Key Takeaways
 
 1. Redis is a powerful building block, not a default architecture layer.
 2. Caching creates consistency and failure questions.
@@ -901,7 +901,7 @@ When it does not solve a measured bottleneck or when its chosen durability/consi
 
 ---
 
-## References
+### References
 
 - [Redis replication documentation](https://redis.io/docs/latest/operate/oss_and_stack/management/replication/)
 - [Redis Cluster specification](https://redis.io/docs/latest/operate/oss_and_stack/reference/cluster-spec/)

@@ -23,7 +23,7 @@ The key question is:
 
 ---
 
-# 1. Authoritative vs Derived State
+## 1. Authoritative vs Derived State
 
 Example commerce system:
 
@@ -42,7 +42,7 @@ A system can have many copies but should have a clear answer to:
 
 ---
 
-# 2. Cache Consistency
+## 2. Cache Consistency
 
 Typical cache-aside:
 
@@ -71,7 +71,7 @@ Use:
 
 ---
 
-# 3. SQL DB + Redis Transaction
+## 3. SQL DB + Redis Transaction
 
 This is **not** one transaction:
 
@@ -98,7 +98,7 @@ For cache data, eventual repair is often acceptable.
 
 ---
 
-# 4. SQL DB + Kafka / Broker
+## 4. SQL DB + Kafka / Broker
 
 Do not dual-write:
 
@@ -123,7 +123,7 @@ Then publish asynchronously.
 
 ---
 
-# 5. SQL DB + Search Index
+## 5. SQL DB + Search Index
 
 Architecture:
 
@@ -156,7 +156,7 @@ checkout reads authoritative inventory
 
 ---
 
-# 6. MongoDB + Search / Cache
+## 6. MongoDB + Search / Cache
 
 Same principle.
 
@@ -174,7 +174,7 @@ Change Streams can feed downstream views, but consumers still need:
 
 ---
 
-# 7. Read-After-Write
+## 7. Read-After-Write
 
 User flow:
 
@@ -198,7 +198,7 @@ Define which flows require it.
 
 ---
 
-# 8. Monotonic Reads
+## 8. Monotonic Reads
 
 Problem:
 
@@ -220,7 +220,7 @@ Possible controls:
 
 ---
 
-# 9. Versioned Projection
+## 9. Versioned Projection
 
 Source:
 
@@ -251,7 +251,7 @@ This is essential for asynchronous projections.
 
 ---
 
-# 10. Reconciliation
+## 10. Reconciliation
 
 No distributed pipeline is perfect forever.
 
@@ -277,7 +277,7 @@ Reconciliation is a safety net for failures outside happy-path retry windows.
 
 ---
 
-# 11. Consistency SLO
+## 11. Consistency SLO
 
 Do not say only:
 
@@ -302,7 +302,7 @@ This turns consistency into an observable requirement.
 
 ---
 
-# 12. Failure Matrix
+## 12. Failure Matrix
 
 | Copy/System | Authority? | May lag? | Repair |
 |---|---:|---:|---|
@@ -315,6 +315,6 @@ This turns consistency into an observable requirement.
 
 ---
 
-# Interview Answer Template
+## Interview Answer Template
 
 > “I’ll name one authoritative owner for each invariant. Inventory is authoritative in the transactional inventory store; Redis and search may contain projections. The inventory write commits locally and records an outbox event. Cache invalidation and search updates happen asynchronously with entity versions so stale events cannot overwrite newer state. Search is allowed a five-second freshness SLO, but checkout always revalidates stock against the authority. A reconciliation job detects missing projections and stuck outbox events.”

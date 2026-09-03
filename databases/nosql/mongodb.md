@@ -23,7 +23,7 @@ Do not choose MongoDB because “the schema is flexible” or “NoSQL scales.�
 
 ---
 
-# 1. Document Model
+## 1. Document Model
 
 Example:
 
@@ -52,9 +52,9 @@ The document is a natural atomicity boundary.
 
 ---
 
-# 2. Embedding vs Referencing
+## 2. Embedding vs Referencing
 
-## Embed when
+### Embed when
 
 - child belongs to one aggregate/owner
 - data is usually read together
@@ -62,7 +62,7 @@ The document is a natural atomicity boundary.
 - collection is bounded
 - atomic single-document update is valuable
 
-## Reference when
+### Reference when
 
 - child grows without bound
 - many parents share the entity
@@ -74,7 +74,7 @@ Avoid “always embed” and “normalize everything.”
 
 ---
 
-# 3. Bounded Documents
+## 3. Bounded Documents
 
 MongoDB documents have finite size and practical update/read costs.
 
@@ -100,7 +100,7 @@ Use separate collections/bucketing for unbounded relationships:
 
 ---
 
-# 4. Intentional Denormalization
+## 4. Intentional Denormalization
 
 Order snapshots are a good fit:
 
@@ -118,7 +118,7 @@ Denormalization is not merely a performance hack; it can encode domain semantics
 
 ---
 
-# 5. Single-Document Atomicity
+## 5. Single-Document Atomicity
 
 MongoDB guarantees atomicity at the single-document operation boundary.
 
@@ -137,7 +137,7 @@ Check the modification result.
 
 ---
 
-# 6. Multi-Document Transactions
+## 6. Multi-Document Transactions
 
 MongoDB supports transactions across:
 
@@ -160,7 +160,7 @@ Do not redesign a relational aggregate into dozens of collections just to “avo
 
 ---
 
-# 7. Replica Sets
+## 7. Replica Sets
 
 Typical topology:
 
@@ -183,7 +183,7 @@ But “replica set” does not by itself define the application's consistency gu
 
 ---
 
-# 8. Write Concern
+## 8. Write Concern
 
 Write concern controls acknowledgement.
 
@@ -210,7 +210,7 @@ Cost:
 
 ---
 
-# 9. Read Concern
+## 9. Read Concern
 
 Important levels include:
 
@@ -235,7 +235,7 @@ Read concern still matters, and primary leadership can change during failures.
 
 ---
 
-# 10. Read Preference
+## 10. Read Preference
 
 Read preference determines eligible replica-set members.
 
@@ -247,7 +247,7 @@ Using secondaries can improve locality/read distribution while introducing stale
 
 ---
 
-# 11. Causal Consistency
+## 11. Causal Consistency
 
 Causally consistent sessions can provide guarantees such as read-your-writes when configured with appropriate acknowledged writes/read concerns.
 
@@ -263,7 +263,7 @@ and seeing the previous state would be confusing.
 
 ---
 
-# 12. Linearizable Reads
+## 12. Linearizable Reads
 
 Linearizable read concern is a strong single-document read semantic.
 
@@ -275,7 +275,7 @@ Do not make all reads linearizable because the word sounds safest.
 
 ---
 
-# 13. Indexing
+## 13. Indexing
 
 Single-field:
 
@@ -309,7 +309,7 @@ Indexes increase:
 
 ---
 
-# 14. Compound Index Order
+## 14. Compound Index Order
 
 MongoDB compound-index field order matters.
 
@@ -331,7 +331,7 @@ and production-like distributions.
 
 ---
 
-# 15. Query Explain
+## 15. Query Explain
 
 Watch:
 
@@ -346,7 +346,7 @@ If a query returns 20 documents after examining 5 million, you have an access-pa
 
 ---
 
-# 16. Sharding
+## 16. Sharding
 
 A sharded cluster distributes a collection across shards.
 
@@ -366,15 +366,15 @@ Sharding solves capacity/distribution.
 
 ---
 
-# 17. Shard-Key Design
+## 17. Shard-Key Design
 
 Evaluate:
 
-### Cardinality
+#### Cardinality
 
 Can the key split data into enough independent ranges?
 
-### Frequency
+#### Frequency
 
 Do a few values dominate?
 
@@ -384,11 +384,11 @@ tenant = "global"
 
 can be a hotspot even if the field has many other possible values.
 
-### Monotonicity
+#### Monotonicity
 
 A monotonically increasing ranged shard key can route new inserts toward one end of the keyspace.
 
-### Query targeting
+#### Query targeting
 
 Does the common query include the shard key or its useful prefix?
 
@@ -396,9 +396,9 @@ Without it, `mongos` may broadcast to many/all shards.
 
 ---
 
-# 18. Hashed vs Ranged Sharding
+## 18. Hashed vs Ranged Sharding
 
-## Hashed
+### Hashed
 
 Can spread writes more evenly.
 
@@ -407,7 +407,7 @@ Cost:
 - loses natural range locality for that key
 - range queries may fan out
 
-## Ranged
+### Ranged
 
 Preserves locality and targeted range queries.
 
@@ -420,7 +420,7 @@ Choose from workload.
 
 ---
 
-# 19. Scatter/Gather
+## 19. Scatter/Gather
 
 Query without a usable shard key:
 
@@ -440,7 +440,7 @@ Adding shards can make a scatter/gather workload more expensive.
 
 ---
 
-# 20. Resharding
+## 20. Resharding
 
 Shard-key mistakes are not necessarily permanent, but resharding is a major operation.
 
@@ -455,7 +455,7 @@ Migration consumes:
 
 ---
 
-# 21. Transactions on Sharded Clusters
+## 21. Transactions on Sharded Clusters
 
 Cross-shard transactions are supported, but they are more expensive than single-shard/document operations.
 
@@ -465,7 +465,7 @@ Model for locality first.
 
 ---
 
-# 22. Change Streams
+## 22. Change Streams
 
 Change streams expose data changes without directly tailing internal replication logs.
 
@@ -486,7 +486,7 @@ Still design:
 
 ---
 
-# 23. MongoDB vs PostgreSQL
+## 23. MongoDB vs PostgreSQL
 
 Do not frame as:
 
@@ -510,7 +510,7 @@ Choose from shape:
 
 ---
 
-# 24. E-commerce Example
+## 24. E-commerce Example
 
 MongoDB might be a good fit for a product/catalog aggregate with flexible category-specific attributes.
 
@@ -530,7 +530,7 @@ Do not trust a cached/catalog document's stale stock field as final inventory au
 
 ---
 
-# 25. Operational Metrics
+## 25. Operational Metrics
 
 Track:
 
@@ -551,59 +551,59 @@ Track:
 
 ---
 
-# 26. Common Mistakes
+## 26. Common Mistakes
 
-### “MongoDB has no schema”
+#### “MongoDB has no schema”
 
 Wrong. The schema exists whether enforced/documented or accidental.
 
-### “NoSQL means eventual consistency”
+#### “NoSQL means eventual consistency”
 
 MongoDB provides configurable read/write concerns.
 
-### “Secondary read means scalable and safe”
+#### “Secondary read means scalable and safe”
 
 It can be stale.
 
-### “High-cardinality shard key is enough”
+#### “High-cardinality shard key is enough”
 
 Frequency, monotonicity, and query routing matter too.
 
-### “Transactions mean schema design does not matter”
+#### “Transactions mean schema design does not matter”
 
 Distributed transactions are more expensive than single-document atomicity.
 
-### “Embed everything”
+#### “Embed everything”
 
 Unbounded documents become a scaling problem.
 
 ---
 
-# 27. Interview Questions
+## 27. Interview Questions
 
-## Replication vs sharding?
+### Replication vs sharding?
 
 Replication copies data for availability/redundancy. Sharding divides data for capacity/distribution.
 
-## What makes a good shard key?
+### What makes a good shard key?
 
 Enough cardinality, low hotspot frequency, suitable monotonicity behavior, and alignment with common query routing.
 
-## Why is read preference not a consistency setting?
+### Why is read preference not a consistency setting?
 
 It chooses eligible members. Freshness depends on replication state and read concern.
 
-## When should you use a transaction?
+### When should you use a transaction?
 
 When one invariant truly requires atomic changes across multiple documents; otherwise prefer a model that keeps atomic work within one document where practical.
 
-## Why can a primary read still be insufficient for strong semantics?
+### Why can a primary read still be insufficient for strong semantics?
 
 Read concern defines additional guarantees; topology/failover state also matters.
 
 ---
 
-# Senior-Level Checklist
+## Senior-Level Checklist
 
 ```text
 1. What is the aggregate/document boundary?
@@ -624,7 +624,7 @@ Read concern defines additional guarantees; topology/failover state also matters
 
 ---
 
-## References
+### References
 
 - https://www.mongodb.com/docs/manual/core/transactions/
 - https://www.mongodb.com/docs/manual/reference/read-concern/

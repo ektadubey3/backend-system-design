@@ -21,9 +21,9 @@ This document focuses on **how Elasticsearch fits into backend system design**, 
 
 ---
 
-# 🧠 Core Concepts
+## 🧠 Core Concepts
 
-## 1. Document
+### 1. Document
 
 Elasticsearch stores data as **JSON documents**.
 
@@ -55,7 +55,7 @@ But Elasticsearch is designed around **search and analytics workloads**.
 
 ---
 
-## 2. Index
+### 2. Index
 
 Documents are stored inside an **index**.
 
@@ -83,7 +83,7 @@ Think of an index as a logical collection of related searchable documents.
 
 ---
 
-## 3. Mapping
+### 3. Mapping
 
 A mapping defines how document fields should be indexed and interpreted.
 
@@ -112,7 +112,7 @@ Example:
 
 Choosing the correct field type matters.
 
-### `text`
+#### `text`
 
 Use for full-text search:
 
@@ -124,7 +124,7 @@ Elasticsearch analyzes the text before indexing it.
 
 ---
 
-### `keyword`
+#### `keyword`
 
 Use for exact values:
 
@@ -144,7 +144,7 @@ Ideal for:
 
 ---
 
-### Numeric Fields
+#### Numeric Fields
 
 Examples:
 
@@ -166,7 +166,7 @@ Score
 
 ---
 
-### Date
+#### Date
 
 Useful for:
 
@@ -178,7 +178,7 @@ timestamp
 
 ---
 
-## 4. Inverted Index
+### 4. Inverted Index
 
 The **inverted index** is one of the most important Elasticsearch concepts.
 
@@ -241,7 +241,7 @@ This is why Elasticsearch can perform full-text search efficiently at scale.
 
 ---
 
-## 5. Analysis
+### 5. Analysis
 
 Before text becomes searchable, Elasticsearch can process it through an **analyzer**.
 
@@ -283,7 +283,7 @@ Analysis makes natural-language search possible.
 
 ---
 
-## 6. Full-Text Search
+### 6. Full-Text Search
 
 Suppose the user searches:
 
@@ -323,7 +323,7 @@ not only:
 
 ---
 
-## 7. Relevance Scoring
+### 7. Relevance Scoring
 
 Elasticsearch assigns search results a relevance score.
 
@@ -370,11 +370,11 @@ Business Logic
 
 ---
 
-## 8. Query vs Filter
+### 8. Query vs Filter
 
 This distinction is important.
 
-### Query
+#### Query
 
 Usually asks:
 
@@ -391,7 +391,7 @@ Relevance matters.
 
 ---
 
-### Filter
+#### Filter
 
 Usually asks:
 
@@ -429,7 +429,7 @@ rating >= 4
 
 ---
 
-## 9. Aggregations
+### 9. Aggregations
 
 Elasticsearch is not limited to returning search results.
 
@@ -471,9 +471,9 @@ Price Buckets
 
 ---
 
-# 🧩 Distributed Architecture
+## 🧩 Distributed Architecture
 
-## 10. Shards
+### 10. Shards
 
 An Elasticsearch index can be split into multiple **primary shards**.
 
@@ -516,7 +516,7 @@ This allows Elasticsearch to distribute storage and work across multiple nodes.
 
 ---
 
-## 11. Replica Shards
+### 11. Replica Shards
 
 A **replica shard** is a copy of a primary shard.
 
@@ -550,7 +550,7 @@ If Node A becomes unavailable, Elasticsearch still has another copy of the shard
 
 ---
 
-## 12. Nodes and Cluster
+### 12. Nodes and Cluster
 
 A group of Elasticsearch nodes forms a **cluster**.
 
@@ -589,7 +589,7 @@ Cluster
 
 ---
 
-## 13. Search Execution
+### 13. Search Execution
 
 Imagine a query reaches Node 1.
 
@@ -643,7 +643,7 @@ This distributed search model is one reason Elasticsearch can scale search workl
 
 ---
 
-# ⏱️ Near Real-Time Search
+## ⏱️ Near Real-Time Search
 
 Elasticsearch search is generally **near real-time**, not necessarily immediately visible after every write.
 
@@ -675,7 +675,7 @@ rather than behaving exactly like a strongly transactional relational database.
 
 ---
 
-# 🏗️ Backend Architecture
+## 🏗️ Backend Architecture
 
 A common production architecture does **not** make Elasticsearch the only copy of important business data.
 
@@ -763,7 +763,7 @@ Analytics
 
 ---
 
-# 🔄 Data Synchronization Architecture
+## 🔄 Data Synchronization Architecture
 
 Imagine a product price changes.
 
@@ -801,7 +801,7 @@ For many search systems, that is an acceptable trade-off.
 
 ---
 
-# ⚔️ Elasticsearch vs PostgreSQL
+## ⚔️ Elasticsearch vs PostgreSQL
 
 Elasticsearch and PostgreSQL solve different problems.
 
@@ -820,7 +820,7 @@ Elasticsearch and PostgreSQL solve different problems.
 | Search autocomplete       | ⭐ Excellent                  | Possible               |
 | Distributed indexing      | Native design                | Architecture-dependent |
 
-### Use PostgreSQL when you need:
+#### Use PostgreSQL when you need:
 
 ```text
 Payments
@@ -832,7 +832,7 @@ Complex joins
 Business-critical state
 ```
 
-### Use Elasticsearch when you need:
+#### Use Elasticsearch when you need:
 
 ```text
 Product search
@@ -858,7 +858,7 @@ is more appropriate than choosing only one.
 
 ---
 
-# 🌍 Real-World Example — E-Commerce Search
+## 🌍 Real-World Example — E-Commerce Search
 
 Imagine an e-commerce platform with:
 
@@ -881,7 +881,7 @@ and want results instantly.
 
 ---
 
-## Without Elasticsearch
+### Without Elasticsearch
 
 You might try:
 
@@ -909,7 +909,7 @@ Millions of searchable documents
 
 ---
 
-# 🛒 E-Commerce Search Architecture
+## 🛒 E-Commerce Search Architecture
 
 ```mermaid
 flowchart TD
@@ -964,7 +964,7 @@ Elasticsearch
 
 ---
 
-# 🔎 Example Search
+## 🔎 Example Search
 
 User searches:
 
@@ -1018,7 +1018,7 @@ Relevant Products
 
 ---
 
-# 🎯 Search Ranking
+## 🎯 Search Ranking
 
 Search ranking might consider:
 
@@ -1058,7 +1058,7 @@ It is:
 
 ---
 
-# 🔤 Autocomplete
+## 🔤 Autocomplete
 
 Suppose the user types:
 
@@ -1095,7 +1095,7 @@ Autocomplete should normally use search structures designed for autocomplete ins
 
 ---
 
-# 🏷️ Faceted Search
+## 🏷️ Faceted Search
 
 Users often expect:
 
@@ -1123,7 +1123,7 @@ Elasticsearch aggregations are well suited to generating these counts alongside 
 
 ---
 
-# 📈 Scaling the Search System
+## 📈 Scaling the Search System
 
 Start simple:
 
@@ -1180,9 +1180,9 @@ Search traffic
 
 ---
 
-# ✅ Best Practices
+## ✅ Best Practices
 
-## 1. Don't Automatically Use Elasticsearch as Your Primary Database
+### 1. Don't Automatically Use Elasticsearch as Your Primary Database
 
 For many backend systems:
 
@@ -1200,7 +1200,7 @@ This gives each system a job it performs well.
 
 ---
 
-## 2. Design Mappings Intentionally
+### 2. Design Mappings Intentionally
 
 Do not rely blindly on automatic field detection for important production indices.
 
@@ -1220,7 +1220,7 @@ The mapping is part of your system design.
 
 ---
 
-## 3. Understand `text` vs `keyword`
+### 3. Understand `text` vs `keyword`
 
 One of the most important Elasticsearch distinctions:
 
@@ -1245,7 +1245,7 @@ Using the wrong type can lead to confusing search behavior and inefficient queri
 
 ---
 
-## 4. Use Bulk Indexing
+### 4. Use Bulk Indexing
 
 Bad:
 
@@ -1271,7 +1271,7 @@ For large ingestion workloads, batching documents can significantly reduce reque
 
 ---
 
-## 5. Avoid Too Many Shards
+### 5. Avoid Too Many Shards
 
 More shards do not automatically mean more performance.
 
@@ -1291,7 +1291,7 @@ Think:
 
 ---
 
-## 6. Choose Replica Count Based on Requirements
+### 6. Choose Replica Count Based on Requirements
 
 Replicas improve:
 
@@ -1315,7 +1315,7 @@ Choose them based on availability and workload requirements.
 
 ---
 
-## 7. Separate Search Queries From Exact Filters
+### 7. Separate Search Queries From Exact Filters
 
 Instead of treating everything as full-text search:
 
@@ -1333,7 +1333,7 @@ Use relevance scoring only where relevance is actually useful.
 
 ---
 
-## 8. Avoid Deep Offset Pagination
+### 8. Avoid Deep Offset Pagination
 
 This:
 
@@ -1354,7 +1354,7 @@ where appropriate.
 
 ---
 
-## 9. Use Aliases for Safe Index Changes
+### 9. Use Aliases for Safe Index Changes
 
 Imagine production reads from:
 
@@ -1403,7 +1403,7 @@ This is useful for migrations, reindexing, and zero/low-downtime index transitio
 
 ---
 
-## 10. Keep Search Documents Search-Oriented
+### 10. Keep Search Documents Search-Oriented
 
 Your database entity might contain:
 
@@ -1438,7 +1438,7 @@ Filtering Requirements
 
 ---
 
-## 11. Tune Refresh Behavior for the Workload
+### 11. Tune Refresh Behavior for the Workload
 
 More frequent refreshes improve how quickly newly indexed data becomes searchable.
 
@@ -1458,7 +1458,7 @@ Search systems often tolerate slight indexing delay in exchange for better throu
 
 ---
 
-## 12. Monitor Cluster Health
+### 12. Monitor Cluster Health
 
 Monitor:
 
@@ -1481,7 +1481,7 @@ A distributed search system needs operational visibility.
 
 ---
 
-## 13. Test Search With Real Data
+### 13. Test Search With Real Data
 
 Search that looks great with:
 
@@ -1511,9 +1511,9 @@ using realistic workloads.
 
 ---
 
-# ❌ Common Mistakes
+## ❌ Common Mistakes
 
-## 1. Using Elasticsearch as a Drop-In Replacement for a Transactional Database
+### 1. Using Elasticsearch as a Drop-In Replacement for a Transactional Database
 
 Elasticsearch excels at:
 
@@ -1538,7 +1538,7 @@ Choose storage based on requirements.
 
 ---
 
-## 2. Creating Too Many Shards
+### 2. Creating Too Many Shards
 
 Bad assumption:
 
@@ -1564,7 +1564,7 @@ Shard planning matters.
 
 ---
 
-## 3. Using `text` for Everything
+### 3. Using `text` for Everything
 
 Fields such as:
 
@@ -1581,7 +1581,7 @@ Do not make everything a full-text field.
 
 ---
 
-## 4. Using `keyword` for Everything
+### 4. Using `keyword` for Everything
 
 The opposite is also bad.
 
@@ -1597,7 +1597,7 @@ Model fields according to query behavior.
 
 ---
 
-## 5. Ignoring Mapping Explosion
+### 5. Ignoring Mapping Explosion
 
 Uncontrolled dynamic fields can lead to huge mappings.
 
@@ -1617,7 +1617,7 @@ Control the shape of indexed documents.
 
 ---
 
-## 6. Deep Pagination With Large `from`
+### 6. Deep Pagination With Large `from`
 
 Avoid patterns conceptually like:
 
@@ -1634,7 +1634,7 @@ Use an appropriate cursor-style approach such as `search_after` when necessary.
 
 ---
 
-## 7. Running Expensive Wildcard Queries Everywhere
+### 7. Running Expensive Wildcard Queries Everywhere
 
 Queries conceptually like:
 
@@ -1657,7 +1657,7 @@ for the actual product experience.
 
 ---
 
-## 8. Force Refreshing After Every Write
+### 8. Force Refreshing After Every Write
 
 Bad architecture:
 
@@ -1681,7 +1681,7 @@ Decide whether the business actually needs that level of freshness.
 
 ---
 
-## 9. Ignoring Relevance
+### 9. Ignoring Relevance
 
 A search system is not successful merely because it returns matching documents.
 
@@ -1711,7 +1711,7 @@ Search quality is a product problem as well as an engineering problem.
 
 ---
 
-## 10. No Recovery Strategy
+### 10. No Recovery Strategy
 
 Ask:
 
@@ -1731,9 +1731,9 @@ Distributed systems must be designed around failure.
 
 ---
 
-# 🎤 Interview Questions
+## 🎤 Interview Questions
 
-## 1. What is an inverted index?
+### 1. What is an inverted index?
 
 **Answer:**
 An inverted index maps terms to the documents containing those terms, allowing Elasticsearch to locate matching documents without scanning every document.
@@ -1746,7 +1746,7 @@ Documents containing term
 
 ---
 
-## 2. What is the difference between a primary shard and a replica shard?
+### 2. What is the difference between a primary shard and a replica shard?
 
 **Answer:**
 
@@ -1762,7 +1762,7 @@ Replica
 
 ---
 
-## 3. Why shouldn't Elasticsearch automatically replace PostgreSQL or MongoDB?
+### 3. Why shouldn't Elasticsearch automatically replace PostgreSQL or MongoDB?
 
 **Answer:**
 Elasticsearch is optimized primarily for search and analytics, while transactional databases are generally better suited to authoritative business data, transactions, constraints, and transactional consistency.
@@ -1781,7 +1781,7 @@ Search Index
 
 ---
 
-## 4. What is the difference between a query and a filter?
+### 4. What is the difference between a query and a filter?
 
 **Answer:**
 
@@ -1807,7 +1807,7 @@ inStock = true
 
 ---
 
-## 5. How would you scale Elasticsearch for millions of documents?
+### 5. How would you scale Elasticsearch for millions of documents?
 
 **Answer:**
 Distribute the index using appropriately sized primary shards across multiple data nodes, use replicas for availability/read capacity, monitor shard sizes and cluster resources, and scale nodes according to indexing and search workloads.
@@ -1816,9 +1816,9 @@ Do not simply increase the shard count blindly.
 
 ---
 
-# 🎯 Key Takeaways
+## 🎯 Key Takeaways
 
-## 1. Elasticsearch Is a Search Engine, Not Just Another Database
+### 1. Elasticsearch Is a Search Engine, Not Just Another Database
 
 Think:
 
@@ -1848,7 +1848,7 @@ Distributed Retrieval
 
 ---
 
-## 2. Good Search Starts With Good Data Modeling
+### 2. Good Search Starts With Good Data Modeling
 
 Search performance is heavily influenced by:
 
@@ -1868,7 +1868,7 @@ Do not wait until production traffic arrives to think about them.
 
 ---
 
-## 3. Scale Search Based on Workload
+### 3. Scale Search Based on Workload
 
 Start:
 
@@ -1917,7 +1917,7 @@ The goal is to create the **simplest architecture that satisfies your search, sc
 
 ---
 
-# 🧠 Elasticsearch System Design Mental Model
+## 🧠 Elasticsearch System Design Mental Model
 
 When Elasticsearch appears in a system-design interview, think through:
 
