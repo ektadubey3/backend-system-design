@@ -28,9 +28,9 @@ For senior system design, joins matter because they expose:
 
 ---
 
-# 1. Join Semantics
+## 1. Join Semantics
 
-## INNER JOIN
+### INNER JOIN
 
 Return matching pairs.
 
@@ -41,13 +41,13 @@ JOIN users u
   ON u.id = o.user_id;
 ```
 
-## LEFT JOIN
+### LEFT JOIN
 
 Return all left rows plus matches.
 
 Useful for optional related state.
 
-## FULL OUTER JOIN
+### FULL OUTER JOIN
 
 Useful for:
 
@@ -57,7 +57,7 @@ Useful for:
 
 Support varies by database.
 
-## CROSS JOIN
+### CROSS JOIN
 
 Cartesian product.
 
@@ -69,7 +69,7 @@ Useful intentionally, dangerous accidentally.
 
 ---
 
-# 2. Cardinality First
+## 2. Cardinality First
 
 Suppose:
 
@@ -95,7 +95,7 @@ The main question is:
 
 ---
 
-# 3. One-to-Many Result Explosion
+## 3. One-to-Many Result Explosion
 
 Query:
 
@@ -126,7 +126,7 @@ Sometimes use:
 
 ---
 
-# 4. Nested Loop Join
+## 4. Nested Loop Join
 
 Conceptually:
 
@@ -162,7 +162,7 @@ Look at loops and row count.
 
 ---
 
-# 5. Hash Join
+## 5. Hash Join
 
 Conceptually:
 
@@ -184,7 +184,7 @@ A hash join is not a substitute for reducing unnecessary input rows.
 
 ---
 
-# 6. Merge Join
+## 6. Merge Join
 
 Conceptually:
 
@@ -204,7 +204,7 @@ Do not memorize “merge join for large tables” as an unconditional rule.
 
 ---
 
-# 7. Join Order
+## 7. Join Order
 
 For inner joins, optimizers can often reorder joins.
 
@@ -228,7 +228,7 @@ is not freely interchangeable with arbitrary reordered joins.
 
 ---
 
-# 8. Statistics and Cardinality Estimation
+## 8. Statistics and Cardinality Estimation
 
 A bad estimate:
 
@@ -256,7 +256,7 @@ before forcing a plan.
 
 ---
 
-# 9. Indexing Join Paths
+## 9. Indexing Join Paths
 
 Foreign-key relationship:
 
@@ -277,7 +277,7 @@ But “every foreign key must always have an index” is too absolute; workload 
 
 ---
 
-# 10. Filter Before Joining
+## 10. Filter Before Joining
 
 Prefer:
 
@@ -299,7 +299,7 @@ Be careful: optimizer transformations and outer-join semantics can change what i
 
 ---
 
-# 11. `ON` vs `WHERE` With Outer Joins
+## 11. `ON` vs `WHERE` With Outer Joins
 
 Classic correctness bug.
 
@@ -333,7 +333,7 @@ Semantics before performance.
 
 ---
 
-# 12. N+1 Is an Application Join Problem
+## 12. N+1 Is an Application Join Problem
 
 ```text
 1 query: orders
@@ -364,7 +364,7 @@ DB CPU
 
 ---
 
-# 13. Join vs Denormalization
+## 13. Join vs Denormalization
 
 Join when:
 
@@ -390,7 +390,7 @@ This is domain history, not merely a performance shortcut.
 
 ---
 
-# 14. Join vs Materialized Projection
+## 14. Join vs Materialized Projection
 
 For an expensive dashboard:
 
@@ -424,7 +424,7 @@ query cost
 
 ---
 
-# 15. Joins Across Services
+## 15. Joins Across Services
 
 Bad distributed composition:
 
@@ -453,7 +453,7 @@ At service boundaries prefer:
 
 ---
 
-# 16. Data Ownership
+## 16. Data Ownership
 
 A cross-service join often reveals unclear ownership.
 
@@ -470,7 +470,7 @@ Do not duplicate mutable data without defining propagation and reconciliation.
 
 ---
 
-# 17. Distributed Join vs Co-Location
+## 17. Distributed Join vs Co-Location
 
 In sharded systems:
 
@@ -490,7 +490,7 @@ But overfitting all data to one join can destroy other access patterns.
 
 ---
 
-# 18. Pagination and Joins
+## 18. Pagination and Joins
 
 If the API returns 20 orders:
 
@@ -510,7 +510,7 @@ Entity-level pagination must align with the UX entity.
 
 ---
 
-# 19. Join Query Observability
+## 19. Join Query Observability
 
 Track:
 
@@ -529,41 +529,41 @@ The right plan can change as data distribution changes.
 
 ---
 
-# 20. Common Mistakes
+## 20. Common Mistakes
 
-### “Joins do not scale”
+#### “Joins do not scale”
 
 Too vague.
 
-### “NoSQL avoids joins, so it is faster”
+#### “NoSQL avoids joins, so it is faster”
 
 It may move composition into application/network or duplicate state.
 
-### “Index every join column”
+#### “Index every join column”
 
 Not automatically.
 
-### “Hash join is faster than nested loop”
+#### “Hash join is faster than nested loop”
 
 Depends on row counts and access path.
 
-### “One SQL query is always better than multiple”
+#### “One SQL query is always better than multiple”
 
 A gigantic duplicative result can be worse than two targeted queries.
 
-### “Service calls are just joins over HTTP”
+#### “Service calls are just joins over HTTP”
 
 They have independent latency/failure/consistency semantics.
 
 ---
 
-# Interview Answer Template
+## Interview Answer Template
 
 > “The order detail query is relational and bounded by one order ID, so a join is appropriate. I expect one order, tens of items, and one payment/shipment row, with PK/FK access paths. I’ll inspect the actual plan rather than assume the algorithm. For the order-history list I’ll paginate orders before loading child detail to avoid row explosion. If this became a cross-service page, I would not fan out one call per item; I’d use batching or a materialized projection with an explicit freshness contract.”
 
 ---
 
-## References
+### References
 
 - PostgreSQL EXPLAIN: https://www.postgresql.org/docs/current/using-explain.html
 - MySQL join optimization: https://dev.mysql.com/doc/refman/8.4/en/nested-join-optimization.html

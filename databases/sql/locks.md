@@ -34,7 +34,7 @@ They do not provide interchangeable guarantees.
 
 ---
 
-# 1. Choose the Concurrency Primitive
+## 1. Choose the Concurrency Primitive
 
 For each invariant, consider:
 
@@ -56,7 +56,7 @@ Do not start with Redis/ZooKeeper if the SQL row itself can enforce the rule.
 
 ---
 
-# 2. In-Process Mutex
+## 2. In-Process Mutex
 
 Useful when:
 
@@ -76,7 +76,7 @@ A local mutex is insufficient for horizontally scaled service instances.
 
 ---
 
-# 3. PostgreSQL Row Locks
+## 3. PostgreSQL Row Locks
 
 Example:
 
@@ -97,7 +97,7 @@ MVCC readers can read the appropriate version.
 
 ---
 
-# 4. PostgreSQL Row Lock Modes
+## 4. PostgreSQL Row Lock Modes
 
 Common modes:
 
@@ -112,7 +112,7 @@ Do not memorize the conflict matrix for interviews unless asked; understand that
 
 ---
 
-# 5. PostgreSQL Table Locks
+## 5. PostgreSQL Table Locks
 
 DDL and maintenance can acquire table-level modes.
 
@@ -131,7 +131,7 @@ Schema migration design is therefore a system-design concern.
 
 ---
 
-# 6. PostgreSQL Advisory Locks
+## 6. PostgreSQL Advisory Locks
 
 Advisory locks use application-defined lock IDs.
 
@@ -155,7 +155,7 @@ Use the right lifecycle.
 
 ---
 
-# 7. InnoDB Record and Range Locks
+## 7. InnoDB Record and Range Locks
 
 InnoDB locking reads and writes operate through indexes.
 
@@ -179,7 +179,7 @@ Indexing is therefore also concurrency design.
 
 ---
 
-# 8. Gap and Next-Key Locks
+## 8. Gap and Next-Key Locks
 
 InnoDB can use next-key locking:
 
@@ -200,7 +200,7 @@ Do not describe MySQL locking using only “row lock vs table lock.”
 
 ---
 
-# 9. Lock Escalation Is Not Universal
+## 9. Lock Escalation Is Not Universal
 
 Some database systems can escalate many fine-grained locks into coarser locks.
 
@@ -218,7 +218,7 @@ Always name the database when discussing escalation.
 
 ---
 
-# 10. Pessimistic Locking
+## 10. Pessimistic Locking
 
 Use when:
 
@@ -251,7 +251,7 @@ Cost:
 
 ---
 
-# 11. Optimistic Concurrency
+## 11. Optimistic Concurrency
 
 Version check:
 
@@ -282,7 +282,7 @@ can waste more work than a queue/lock/serialized owner.
 
 ---
 
-# 12. Atomic Update Instead of Lock
+## 12. Atomic Update Instead of Lock
 
 Counter:
 
@@ -312,7 +312,7 @@ when no intermediate read-dependent logic is required.
 
 ---
 
-# 13. Deadlocks
+## 13. Deadlocks
 
 Example:
 
@@ -332,19 +332,19 @@ Mitigation:
 - avoid unnecessary resources
 - retry aborted transaction
 
-Deadlock handling is part of normal application behavior on busy systems. MySQL/InnoDB explicitly documents retrying transactions that are rolled back as deadlock victims. 
+Deadlock handling is part of normal application behavior on busy systems. MySQL/InnoDB explicitly documents retrying transactions that are rolled back as deadlock victims.
 
 ---
 
-# 14. Lock Timeout vs Deadlock
+## 14. Lock Timeout vs Deadlock
 
-### Deadlock
+#### Deadlock
 
 A dependency cycle exists.
 
 Database may detect and abort a victim quickly.
 
-### Lock timeout
+#### Lock timeout
 
 No cycle is required.
 
@@ -354,7 +354,7 @@ These need different observability and sometimes different retry policy.
 
 ---
 
-# 15. `NOWAIT`
+## 15. `NOWAIT`
 
 Some databases support immediate failure instead of waiting.
 
@@ -370,7 +370,7 @@ is better than queueing.
 
 ---
 
-# 16. `SKIP LOCKED`
+## 16. `SKIP LOCKED`
 
 Useful for worker queues:
 
@@ -388,7 +388,7 @@ Do not use `SKIP LOCKED` for a query that is supposed to represent a complete co
 
 ---
 
-# 17. Distributed Locks
+## 17. Distributed Locks
 
 A distributed lock/lease can coordinate service instances.
 
@@ -410,7 +410,7 @@ Need:
 
 ---
 
-# 18. Lease Expiry Problem
+## 18. Lease Expiry Problem
 
 Timeline:
 
@@ -432,7 +432,7 @@ TTL alone does not prove exclusive execution.
 
 ---
 
-# 19. Fencing Tokens
+## 19. Fencing Tokens
 
 Issue monotonically increasing epochs:
 
@@ -455,7 +455,7 @@ Fencing moves safety to the protected resource.
 
 ---
 
-# 20. Distributed Lock vs Leader Election
+## 20. Distributed Lock vs Leader Election
 
 Related but different.
 
@@ -475,7 +475,7 @@ A leader still needs fencing/term numbers if stale leaders can continue writing.
 
 ---
 
-# 21. Lock vs Idempotency
+## 21. Lock vs Idempotency
 
 Lock:
 
@@ -499,7 +499,7 @@ Do not add a lock when a unique key solves the actual duplicate-request problem.
 
 ---
 
-# 22. Hot Lock / Hot Row
+## 22. Hot Lock / Hot Row
 
 A single popular counter or resource can serialize throughput.
 
@@ -520,7 +520,7 @@ Options:
 
 ---
 
-# 23. Observability
+## 23. Observability
 
 Track:
 
@@ -542,41 +542,41 @@ For MySQL inspect lock/deadlock instrumentation and InnoDB status/performance sc
 
 ---
 
-# 24. Common Mistakes
+## 24. Common Mistakes
 
-### “FOR UPDATE blocks all readers”
+#### “FOR UPDATE blocks all readers”
 
 Not a portable statement.
 
-### “Every SQL SELECT gets a shared row lock”
+#### “Every SQL SELECT gets a shared row lock”
 
 False in MVCC systems.
 
-### “Row locks always become table locks at scale”
+#### “Row locks always become table locks at scale”
 
 Vendor-specific, not universal.
 
-### “Distributed lock guarantees exactly one execution”
+#### “Distributed lock guarantees exactly one execution”
 
 Lease expiry can allow stale work.
 
-### “Use Redis lock for database inventory”
+#### “Use Redis lock for database inventory”
 
 Prefer DB invariant/atomic update when the DB is authoritative.
 
-### “Deadlock means retry one statement”
+#### “Deadlock means retry one statement”
 
 The database may have rolled back the whole transaction; follow product semantics.
 
 ---
 
-# Interview Answer Template
+## Interview Answer Template
 
 > “The authoritative state is the inventory row, so I would first avoid an external distributed lock and use an atomic conditional decrement. If the operation requires reading several mutable fields before deciding, I’d use a row lock or Serializable transaction depending on the invariant. I’ll keep the transaction short, index the locking predicate so the lock footprint is narrow, and retry deadlock/serialization failures according to the database semantics. A distributed lease is only for coordination outside that DB boundary, and correctness-critical external resources need fencing tokens.”
 
 ---
 
-## References
+### References
 
 - PostgreSQL explicit locking: https://www.postgresql.org/docs/current/explicit-locking.html
 - MySQL InnoDB locks: https://dev.mysql.com/doc/refman/8.4/en/innodb-locks-set.html

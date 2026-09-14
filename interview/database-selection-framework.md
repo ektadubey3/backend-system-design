@@ -265,9 +265,9 @@ A technically elegant database that the team cannot operate is a poor system-des
 
 ---
 
-# Decision Examples
+## Decision Examples
 
-## Payments ledger
+### Payments ledger
 
 Likely priorities:
 
@@ -284,7 +284,7 @@ Redis/search may be projections, not authority.
 
 ---
 
-## Product catalog
+### Product catalog
 
 Possible priorities:
 
@@ -305,7 +305,7 @@ Decide from query/transaction shape, not schema-flexibility slogans.
 
 ---
 
-## Social feed
+### Social feed
 
 Likely split:
 
@@ -320,7 +320,7 @@ One database does not need to do everything.
 
 ---
 
-## Rate limiter
+### Rate limiter
 
 State:
 
@@ -337,7 +337,7 @@ But define fail-open/fail-closed and multi-region semantics.
 
 ---
 
-# Comparison Checklist
+## Comparison Checklist
 
 | Dimension | PostgreSQL/MySQL | MongoDB | Redis |
 |---|---|---|---|
@@ -355,13 +355,13 @@ This table is only a starting point.
 
 ---
 
-# Interview Answer Template
+## Interview Answer Template
 
 > “The invariant is transactional across orders and inventory, and the main access patterns require indexed relational queries, so I’ll start with PostgreSQL/MySQL rather than choose a sharded store prematurely. I expect roughly X write QPS and Y GB/year, which one primary can plausibly handle with proper indexing and pooling. Redis is only for hot derived reads. Search is a separate projection if relevance/faceting becomes important. If write throughput later exceeds a single-primary limit, I’ll revisit partition ownership using the dominant tenant/customer key rather than claiming horizontal scaling is free.”
 
 ---
 
-# Red Flags
+## Red Flags
 
 Avoid these answers:
 

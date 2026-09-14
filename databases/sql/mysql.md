@@ -21,7 +21,7 @@ The interview value comes from understanding the InnoDB transaction model, clust
 
 ---
 
-# 1. InnoDB as the Transactional Default
+## 1. InnoDB as the Transactional Default
 
 InnoDB is the normal production choice when you need:
 
@@ -37,7 +37,7 @@ Do not design modern OLTP around MyISAM unless there is an extremely specific re
 
 ---
 
-# 2. Clustered Primary Key
+## 2. Clustered Primary Key
 
 In InnoDB, the table data is organized by the primary-key clustered index.
 
@@ -81,9 +81,9 @@ Primary-key design is a storage decision, not only an API identifier decision.
 
 ---
 
-# 3. Auto-Increment vs UUID
+## 3. Auto-Increment vs UUID
 
-## Auto-increment integer
+### Auto-increment integer
 
 **Benefits**
 
@@ -97,7 +97,7 @@ Primary-key design is a storage decision, not only an API identifier decision.
 - predictable
 - harder for disconnected writers to pre-generate
 
-## UUID
+### UUID
 
 Useful for independent generation, but random UUIDs can spread inserts across pages and increase index size.
 
@@ -105,7 +105,7 @@ If UUID semantics are required, prefer a storage representation and ordering str
 
 ---
 
-# 4. Transactions
+## 4. Transactions
 
 ```sql
 START TRANSACTION;
@@ -130,7 +130,7 @@ Keep transactions:
 
 ---
 
-# 5. InnoDB Isolation Levels
+## 5. InnoDB Isolation Levels
 
 InnoDB supports the four standard names:
 
@@ -145,7 +145,7 @@ Implementation details matter more than the generic ANSI anomaly table.
 
 ---
 
-# 6. Repeatable Read in InnoDB
+## 6. Repeatable Read in InnoDB
 
 Ordinary consistent reads in one transaction use the snapshot established by the first such read.
 
@@ -174,7 +174,7 @@ A missing or weak index can therefore become a **concurrency problem**, not just
 
 ---
 
-# 7. Read Committed
+## 7. Read Committed
 
 Read Committed creates a fresh committed view per consistent read.
 
@@ -189,7 +189,7 @@ Do not change the global isolation level merely because “Read Committed is fas
 
 ---
 
-# 8. Serializable
+## 8. Serializable
 
 Serializable is stricter and can transform ordinary reads into stronger locking behavior.
 
@@ -205,7 +205,7 @@ Before choosing it globally, ask whether the invariant can be protected with:
 
 ---
 
-# 9. MVCC and Undo
+## 9. MVCC and Undo
 
 InnoDB uses undo information to reconstruct older row versions for consistent reads and rollback.
 
@@ -220,7 +220,7 @@ Monitor:
 
 ---
 
-# 10. Atomic Conditional Update
+## 10. Atomic Conditional Update
 
 Instead of:
 
@@ -245,7 +245,7 @@ This often protects an invariant without a broad isolation change.
 
 ---
 
-# 11. Locking Reads
+## 11. Locking Reads
 
 Use:
 
@@ -265,7 +265,7 @@ Be aware:
 
 ---
 
-# 12. Deadlocks
+## 12. Deadlocks
 
 Deadlocks are normal in concurrent transactional systems.
 
@@ -302,7 +302,7 @@ Reduce deadlocks by:
 
 ---
 
-# 13. Buffer Pool
+## 13. Buffer Pool
 
 The InnoDB buffer pool caches table/index pages.
 
@@ -327,7 +327,7 @@ Performance depends strongly on:
 
 ---
 
-# 14. Redo Log
+## 14. Redo Log
 
 Redo records physical changes needed for crash recovery.
 
@@ -347,7 +347,7 @@ Redo allows page writes to be decoupled from every commit.
 
 ---
 
-# 15. Undo Log
+## 15. Undo Log
 
 Undo supports:
 
@@ -359,7 +359,7 @@ Long transactions can prevent cleanup of older versions.
 
 ---
 
-# 16. Binary Log
+## 16. Binary Log
 
 The binary log exists at the MySQL server level and supports:
 
@@ -379,7 +379,7 @@ Mental model:
 
 ---
 
-# 17. Indexing
+## 17. Indexing
 
 InnoDB commonly uses B-tree-style indexes.
 
@@ -405,7 +405,7 @@ Validate with `EXPLAIN` / `EXPLAIN ANALYZE` where appropriate for the version/wo
 
 ---
 
-# 18. Composite Index Order
+## 18. Composite Index Order
 
 Example:
 
@@ -429,7 +429,7 @@ Consider:
 
 ---
 
-# 19. Replication
+## 19. Replication
 
 Traditional MySQL replication is asynchronous by default.
 
@@ -456,7 +456,7 @@ Costs:
 
 ---
 
-# 20. GTIDs
+## 20. GTIDs
 
 Global Transaction Identifiers identify committed transactions in a topology.
 
@@ -475,7 +475,7 @@ They do not remove the need to reason about:
 
 ---
 
-# 21. Semisynchronous Replication
+## 21. Semisynchronous Replication
 
 Semisynchronous replication can make the source wait until at least one semisynchronous replica acknowledges receiving/logging the transaction events before returning the commit to the client.
 
@@ -487,7 +487,7 @@ It can reduce the window for source-only acknowledged transactions, at the cost 
 
 ---
 
-# 22. Group Replication
+## 22. Group Replication
 
 MySQL Group Replication provides a different HA model with group membership and consistency mechanisms.
 
@@ -500,7 +500,7 @@ Use it when the operational model fits. Do not treat “multi-primary” as auto
 
 ---
 
-# 23. Read Replicas
+## 23. Read Replicas
 
 Send reads to replicas only when the consistency policy permits it.
 
@@ -521,7 +521,7 @@ Measure replication lag.
 
 ---
 
-# 24. Connection Pooling
+## 24. Connection Pooling
 
 Application concurrency should be decoupled from database connection count.
 
@@ -544,7 +544,7 @@ Too many database connections can create:
 
 ---
 
-# 25. Backups and Recovery
+## 25. Backups and Recovery
 
 Replication is not backup.
 
@@ -565,7 +565,7 @@ before choosing replication and backup topology.
 
 ---
 
-# 26. Scaling Path
+## 26. Scaling Path
 
 A healthy progression:
 
@@ -589,59 +589,59 @@ shard/distribute only when measured limits require it
 
 ---
 
-# 27. Common Mistakes
+## 27. Common Mistakes
 
-### “MySQL is simpler, therefore it cannot handle complex systems”
+#### “MySQL is simpler, therefore it cannot handle complex systems”
 
 Wrong. Complexity depends on the workload and architecture.
 
-### “Replica = current”
+#### “Replica = current”
 
 Replication is asynchronous by default.
 
-### “Repeatable Read means no anomalies”
+#### “Repeatable Read means no anomalies”
 
 Implementation is strong, but correctness still depends on read type, locking, and business invariant.
 
-### “Deadlocks mean the schema is broken”
+#### “Deadlocks mean the schema is broken”
 
 Some deadlocks are normal. Frequent deadlocks may reveal poor lock ordering/indexing or overly large transactions.
 
-### “Adding indexes is free”
+#### “Adding indexes is free”
 
 Indexes enlarge the buffer-pool working set and increase write cost.
 
-### “Semisync means synchronous apply”
+#### “Semisync means synchronous apply”
 
 It does not imply the replica has applied the transaction before acknowledgment.
 
 ---
 
-# 28. Interview Questions
+## 28. Interview Questions
 
-## Why does primary-key size matter more in InnoDB?
+### Why does primary-key size matter more in InnoDB?
 
 Because rows are clustered by primary key and secondary indexes include the primary-key value.
 
-## Why can a missing index increase lock contention?
+### Why can a missing index increase lock contention?
 
 Locking statements can lock scanned index ranges. A broader scan can produce a broader lock footprint.
 
-## What is the consistency problem with read replicas?
+### What is the consistency problem with read replicas?
 
 The replica may not have applied the latest source transaction.
 
-## Why must applications retry deadlocks?
+### Why must applications retry deadlocks?
 
 InnoDB can choose one transaction as the deadlock victim and roll it back.
 
-## Redo vs binlog?
+### Redo vs binlog?
 
 Redo is an InnoDB crash-recovery mechanism. Binlog supports replication and logical recovery/CDC.
 
 ---
 
-# Senior-Level Checklist
+## Senior-Level Checklist
 
 ```text
 1. What invariant belongs in MySQL?
@@ -660,7 +660,7 @@ Redo is an InnoDB crash-recovery mechanism. Binlog supports replication and logi
 
 ---
 
-## References
+### References
 
 - https://dev.mysql.com/doc/refman/8.4/en/innodb-introduction.html
 - https://dev.mysql.com/doc/refman/8.4/en/innodb-transaction-isolation-levels.html

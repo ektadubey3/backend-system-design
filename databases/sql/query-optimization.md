@@ -31,7 +31,7 @@ Optimize the workload, not isolated SQL screenshots.
 
 ---
 
-# 1. Define the Problem
+## 1. Define the Problem
 
 Measure:
 
@@ -51,7 +51,7 @@ A 2-second query run once a night may matter less than a 40 ms query run 50,000 
 
 ---
 
-# 2. Execution Plan
+## 2. Execution Plan
 
 Use the database's plan tools.
 
@@ -85,7 +85,7 @@ filter
 
 ---
 
-# 3. Sequential Scan Is Not Automatically Bad
+## 3. Sequential Scan Is Not Automatically Bad
 
 A full scan may be right when:
 
@@ -99,7 +99,7 @@ Do not fight the optimizer solely because you see `Seq Scan`.
 
 ---
 
-# 4. Select Fewer Rows
+## 4. Select Fewer Rows
 
 The highest-leverage optimization is often:
 
@@ -117,7 +117,7 @@ Use:
 
 ---
 
-# 5. Select Fewer Columns
+## 5. Select Fewer Columns
 
 Avoid `SELECT *` on hot APIs when large payload columns exist.
 
@@ -132,7 +132,7 @@ But do not obsess over three tiny fixed-width columns in a query dominated by an
 
 ---
 
-# 6. Correct Composite Index
+## 6. Correct Composite Index
 
 Query:
 
@@ -155,7 +155,7 @@ Validate it against real distribution and workload.
 
 ---
 
-# 7. Cardinality Estimation
+## 7. Cardinality Estimation
 
 Bad planner estimates can come from:
 
@@ -179,7 +179,7 @@ Before adding hints/forcing behavior, fix the information problem when possible.
 
 ---
 
-# 8. Join Strategy
+## 8. Join Strategy
 
 Common algorithms:
 
@@ -205,7 +205,7 @@ Inspect row counts and loops.
 
 ---
 
-# 9. N+1
+## 9. N+1
 
 Application:
 
@@ -226,7 +226,7 @@ Do not replace N+1 with one giant Cartesian join that duplicates huge payloads. 
 
 ---
 
-# 10. Keyset Pagination
+## 10. Keyset Pagination
 
 Deep offset:
 
@@ -258,7 +258,7 @@ Cursor should encode the complete ordering position.
 
 ---
 
-# 11. Offset Pagination Still Has a Place
+## 11. Offset Pagination Still Has a Place
 
 Good for:
 
@@ -271,7 +271,7 @@ The choice is UX + workload, not dogma.
 
 ---
 
-# 12. Functions on Indexed Columns
+## 12. Functions on Indexed Columns
 
 A function can prevent use of a normal index if the index does not match the expression.
 
@@ -291,7 +291,7 @@ Validate with plan.
 
 ---
 
-# 13. Sort and Spill
+## 13. Sort and Spill
 
 Large sorts/aggregates can spill from memory to disk.
 
@@ -312,7 +312,7 @@ Possible fixes:
 
 ---
 
-# 14. Read Replicas
+## 14. Read Replicas
 
 A query router may send stale-tolerant reads to replicas.
 
@@ -329,7 +329,7 @@ New problems:
 
 ---
 
-# 15. Cache
+## 15. Cache
 
 Use cache when:
 
@@ -354,7 +354,7 @@ Fix an obviously bad query before building a complex cache around it.
 
 ---
 
-# 16. Precompute
+## 16. Precompute
 
 Useful for expensive repeated aggregates:
 
@@ -375,7 +375,7 @@ Define freshness SLO.
 
 ---
 
-# 17. OLTP vs Analytics
+## 17. OLTP vs Analytics
 
 OLTP wants:
 
@@ -402,7 +402,7 @@ Do not let a dashboard scan starve checkout.
 
 ---
 
-# 18. Query Timeouts and Resource Guardrails
+## 18. Query Timeouts and Resource Guardrails
 
 Protect the database with:
 
@@ -418,7 +418,7 @@ A query should not run forever because a client disconnected.
 
 ---
 
-# 19. Partition Pruning / Shard Routing
+## 19. Partition Pruning / Shard Routing
 
 If a large table or distributed DB is partitioned, include the partition/routing key where practical.
 
@@ -438,7 +438,7 @@ broadcast every shard
 
 ---
 
-# 20. Query Regression
+## 20. Query Regression
 
 A query can regress without SQL changing because:
 
@@ -454,35 +454,35 @@ Monitor query fingerprints over time.
 
 ---
 
-# 21. Common Mistakes
+## 21. Common Mistakes
 
-### “Index scan always beats table scan”
+#### “Index scan always beats table scan”
 
 False.
 
-### “Select * is always the main problem”
+#### “Select * is always the main problem”
 
 Sometimes irrelevant compared with row count/join/spill.
 
-### “Read replica makes reads scalable”
+#### “Read replica makes reads scalable”
 
 Only stale-tolerant reads, and replicas are finite resources.
 
-### “Cursor pagination fixes all pagination”
+#### “Cursor pagination fixes all pagination”
 
 It sacrifices arbitrary page jumps and requires stable ordering.
 
-### “Caching fixes slow SQL”
+#### “Caching fixes slow SQL”
 
 It may only hide it.
 
-### “Add database CPU”
+#### “Add database CPU”
 
 If the query does 10,000× too much work, larger hardware delays the incident.
 
 ---
 
-# Query-Optimization Workflow
+## Query-Optimization Workflow
 
 ```text
 1. Find top query fingerprints.
@@ -499,27 +499,27 @@ If the query does 10,000× too much work, larger hardware delays the incident.
 
 ---
 
-# Interview Questions
+## Interview Questions
 
-## Why might the database ignore an index?
+### Why might the database ignore an index?
 
 The optimizer may estimate that a scan is cheaper, the predicate may return too many rows, the index order/expression may not match, or statistics may be misleading.
 
-## Why can keyset pagination duplicate/skip incorrectly?
+### Why can keyset pagination duplicate/skip incorrectly?
 
 If the ordering is not deterministic or the cursor does not include all order-by tie-breakers.
 
-## What is the first optimization for N+1?
+### What is the first optimization for N+1?
 
 Change the access pattern—batch or join related reads—then validate payload and plan costs.
 
-## When should analytics leave the primary?
+### When should analytics leave the primary?
 
 When large scans/aggregations materially interfere with latency-sensitive transactional work.
 
 ---
 
-## References
+### References
 
 - PostgreSQL EXPLAIN: https://www.postgresql.org/docs/current/using-explain.html
 - PostgreSQL indexes: https://www.postgresql.org/docs/current/indexes.html

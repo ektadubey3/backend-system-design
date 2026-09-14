@@ -27,7 +27,7 @@ It is:
 
 ---
 
-# 1. When PostgreSQL Is a Strong Fit
+## 1. When PostgreSQL Is a Strong Fit
 
 Choose PostgreSQL when the workload benefits from:
 
@@ -57,7 +57,7 @@ Do not reject PostgreSQL merely because “the system must scale.” First ident
 
 ---
 
-# 2. Data Modeling and Constraints
+## 2. Data Modeling and Constraints
 
 Database constraints are part of the architecture because they protect data from **every writer**, not only the happy-path application.
 
@@ -87,7 +87,7 @@ Application validation improves UX. Database constraints protect correctness.
 
 ---
 
-# 3. Primary-Key Choice
+## 3. Primary-Key Choice
 
 A good primary key is:
 
@@ -96,7 +96,7 @@ A good primary key is:
 - easy to generate at the required scale
 - compatible with future partition/shard strategy
 
-## Integer identity
+### Integer identity
 
 ```sql
 id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY
@@ -114,7 +114,7 @@ Trade-offs:
 - predictable
 - may be awkward when independent writers need IDs before persistence
 
-## UUID
+### UUID
 
 ```sql
 id UUID PRIMARY KEY
@@ -136,7 +136,7 @@ Time-ordered identifier schemes can improve insertion locality, but choose IDs f
 
 ---
 
-# 4. Transactions
+## 4. Transactions
 
 A transaction groups related state changes into one atomic unit.
 
@@ -167,11 +167,11 @@ Do not hold a transaction open while calling a slow external API if the operatio
 
 ---
 
-# 5. PostgreSQL Isolation Levels
+## 5. PostgreSQL Isolation Levels
 
 PostgreSQL exposes the standard isolation-level names but implements three distinct behaviors.
 
-## Read Committed — default
+### Read Committed — default
 
 Each statement sees a snapshot of committed data as of the start of that statement.
 
@@ -184,7 +184,7 @@ Use it for many ordinary CRUD operations, especially when correctness is protect
 - explicit row locks
 - version checks
 
-## Repeatable Read
+### Repeatable Read
 
 The transaction sees a stable snapshot.
 
@@ -198,7 +198,7 @@ PostgreSQL Repeatable Read:
 
 Applications must be prepared to retry relevant failures.
 
-## Serializable
+### Serializable
 
 PostgreSQL Serializable emulates a serial execution for successfully committed transactions by monitoring dangerous read/write dependency patterns.
 
@@ -222,7 +222,7 @@ See `isolation-levels.md` for the cross-database model.
 
 ---
 
-# 6. MVCC
+## 6. MVCC
 
 PostgreSQL uses Multi-Version Concurrency Control.
 
@@ -259,7 +259,7 @@ Long-lived transactions are an operational risk.
 
 ---
 
-# 7. VACUUM and Autovacuum
+## 7. VACUUM and Autovacuum
 
 `VACUUM` is not a “run this when the table is slow” feature.
 
@@ -290,7 +290,7 @@ Monitor:
 
 ---
 
-# 8. Table and Index Bloat
+## 8. Table and Index Bloat
 
 Bloat can grow from:
 
@@ -320,7 +320,7 @@ Remediation is workload-specific:
 
 ---
 
-# 9. Query Planner and Statistics
+## 9. Query Planner and Statistics
 
 PostgreSQL uses a cost-based planner.
 
@@ -362,9 +362,9 @@ Important signals:
 
 ---
 
-# 10. Index Types
+## 10. Index Types
 
-## B-tree
+### B-tree
 
 Default general-purpose index.
 
@@ -380,11 +380,11 @@ CREATE INDEX idx_orders_customer_created
 ON orders(customer_id, created_at DESC);
 ```
 
-## Hash
+### Hash
 
 Useful for supported equality semantics, but B-tree is usually the more versatile default.
 
-## GIN
+### GIN
 
 Generalized Inverted Index.
 
@@ -399,7 +399,7 @@ CREATE INDEX idx_products_metadata
 ON products USING GIN(metadata);
 ```
 
-## GiST
+### GiST
 
 Useful for extensible search structures such as:
 
@@ -408,11 +408,11 @@ Useful for extensible search structures such as:
 - nearest-neighbor use cases
 - PostGIS operator classes
 
-## SP-GiST
+### SP-GiST
 
 Useful for partitioned search structures supported by appropriate operator classes.
 
-## BRIN
+### BRIN
 
 Stores summaries over ranges of table blocks.
 
@@ -422,7 +422,7 @@ It is tiny relative to B-tree, but much less precise.
 
 ---
 
-# 11. Composite Indexes
+## 11. Composite Indexes
 
 Index order must follow actual predicates and ordering.
 
@@ -445,9 +445,9 @@ Do not memorize “leftmost prefix” as the complete planner model. PostgreSQL 
 
 ---
 
-# 12. Partial and Expression Indexes
+## 12. Partial and Expression Indexes
 
-## Partial
+### Partial
 
 Index only rows that matter to a recurring query.
 
@@ -459,7 +459,7 @@ WHERE status = 'pending';
 
 Useful when the indexed subset is much smaller than the full table.
 
-## Expression
+### Expression
 
 ```sql
 CREATE UNIQUE INDEX idx_users_lower_email
@@ -470,7 +470,7 @@ Useful when queries consistently apply the same expression.
 
 ---
 
-# 13. Index-Only Scans and INCLUDE
+## 13. Index-Only Scans and INCLUDE
 
 A covering index can include payload columns:
 
@@ -489,7 +489,7 @@ PostgreSQL may use an index-only scan when:
 
 ---
 
-# 14. JSONB
+## 14. JSONB
 
 PostgreSQL supports relational and document-like data in one database.
 
@@ -511,7 +511,7 @@ flexible metadata                     → JSONB
 
 ---
 
-# 15. Partitioning
+## 15. Partitioning
 
 Native table partitioning can help with:
 
@@ -547,7 +547,7 @@ Partitioning does not eliminate:
 
 ---
 
-# 16. WAL
+## 16. WAL
 
 Write-Ahead Logging means PostgreSQL records durable change information in WAL before modified table pages need to reach their final storage location.
 
@@ -574,7 +574,7 @@ Actual durability depends on configuration and storage guarantees.
 
 ---
 
-# 17. Physical Streaming Replication
+## 17. Physical Streaming Replication
 
 Typical topology:
 
@@ -598,9 +598,9 @@ Potential issues:
 
 ---
 
-# 18. Asynchronous vs Synchronous Replication
+## 18. Asynchronous vs Synchronous Replication
 
-## Asynchronous
+### Asynchronous
 
 Primary does not wait for a standby to satisfy a synchronous commit requirement.
 
@@ -613,7 +613,7 @@ Primary does not wait for a standby to satisfy a synchronous commit requirement.
 
 - recent committed transactions may not exist on the promoted standby after primary loss
 
-## Synchronous
+### Synchronous
 
 Commit can wait for configured synchronous standby acknowledgements.
 
@@ -630,7 +630,7 @@ The right mode follows RPO and latency requirements.
 
 ---
 
-# 19. Replication Slots
+## 19. Replication Slots
 
 Slots prevent required WAL from being removed before a consumer has received it.
 
@@ -656,7 +656,7 @@ Monitor inactive/lagging slots and enforce retention policy.
 
 ---
 
-# 20. Failover and Split Brain
+## 20. Failover and Split Brain
 
 Promoting a standby is only half of failover.
 
@@ -682,7 +682,7 @@ Do not describe HA as simply “promote replica.”
 
 ---
 
-# 21. Logical Replication
+## 21. Logical Replication
 
 Logical replication publishes logical changes rather than block-level physical WAL state.
 
@@ -707,7 +707,7 @@ Ask:
 
 ---
 
-# 22. Connection Pooling
+## 22. Connection Pooling
 
 PostgreSQL uses one backend process per client connection.
 
@@ -735,7 +735,7 @@ External poolers can support session or transaction pooling, but transaction poo
 
 ---
 
-# 23. Read Replicas
+## 23. Read Replicas
 
 Replica reads are useful for stale-tolerant workloads:
 
@@ -757,7 +757,7 @@ Monitor actual replay lag rather than assuming “replica = current.”
 
 ---
 
-# 24. Backups and PITR
+## 24. Backups and PITR
 
 Replication is not backup.
 
@@ -781,7 +781,7 @@ A backup that has never been restored is an unverified backup.
 
 ---
 
-# 25. Scaling Path
+## 25. Scaling Path
 
 A reasonable evolution path:
 
@@ -813,7 +813,7 @@ Do not jump to sharding before:
 
 ---
 
-# 26. Production Metrics
+## 26. Production Metrics
 
 Track:
 
@@ -839,67 +839,67 @@ Track:
 
 ---
 
-# 27. Common Mistakes
+## 27. Common Mistakes
 
-### “PostgreSQL cannot scale”
+#### “PostgreSQL cannot scale”
 
 Too vague. Identify the limiting resource.
 
-### “Read replicas solve scaling”
+#### “Read replicas solve scaling”
 
 They help selected reads, not primary writes, locks, or all consistency-sensitive traffic.
 
-### “Partitioning means sharding”
+#### “Partitioning means sharding”
 
 It does not automatically distribute writes across independent servers.
 
-### “Serializable means no concurrency”
+#### “Serializable means no concurrency”
 
 PostgreSQL uses SSI and can execute transactions concurrently, aborting dangerous combinations.
 
-### “Autovacuum is optional maintenance”
+#### “Autovacuum is optional maintenance”
 
 No. It also prevents XID wraparound.
 
-### “Replication is backup”
+#### “Replication is backup”
 
 No. Logical mistakes replicate too.
 
-### “More connections increase throughput”
+#### “More connections increase throughput”
 
 Only until the database saturates.
 
 ---
 
-# 28. Interview Questions
+## 28. Interview Questions
 
-## Why PostgreSQL over MongoDB?
+### Why PostgreSQL over MongoDB?
 
 Use PostgreSQL when relational constraints, joins, multi-row transactions, and flexible SQL are primary workload needs. Use MongoDB when document locality and document-shaped access patterns are stronger drivers. Avoid choosing from brand stereotypes.
 
-## Why PostgreSQL over Redis?
+### Why PostgreSQL over Redis?
 
 PostgreSQL is commonly the durable system of record; Redis is commonly a low-latency derived/state layer. They frequently coexist.
 
-## What happens when autovacuum falls behind?
+### What happens when autovacuum falls behind?
 
 Dead tuples and bloat can grow; visibility/statistics quality can suffer; and sufficiently old transaction IDs create wraparound risk.
 
-## What is the read-replica consistency problem?
+### What is the read-replica consistency problem?
 
 A replica may not have replayed the latest primary commit, causing stale reads and breaking read-after-write assumptions.
 
-## Why can a replication slot be dangerous?
+### Why can a replication slot be dangerous?
 
 A stalled consumer can force the primary to retain WAL until disk pressure becomes severe.
 
-## How would you protect a final-seat booking?
+### How would you protect a final-seat booking?
 
 Use a database invariant plus an atomic conditional update, explicit locking, or Serializable transaction depending on the rule and contention.
 
 ---
 
-# Senior-Level Checklist
+## Senior-Level Checklist
 
 When proposing PostgreSQL, answer:
 
@@ -920,7 +920,7 @@ When proposing PostgreSQL, answer:
 
 ---
 
-## References
+### References
 
 - https://www.postgresql.org/docs/current/transaction-iso.html
 - https://www.postgresql.org/docs/current/indexes.html

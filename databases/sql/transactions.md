@@ -34,7 +34,7 @@ That boundary is one of the most important ideas in senior backend system design
 
 ---
 
-# 1. The Local Transaction Boundary
+## 1. The Local Transaction Boundary
 
 Example transfer inside one SQL database:
 
@@ -69,7 +69,7 @@ That is an excellent transaction boundary.
 
 ---
 
-# 2. Transactions Do Not Roll Back External Side Effects
+## 2. Transactions Do Not Roll Back External Side Effects
 
 This is unsafe:
 
@@ -103,7 +103,7 @@ Therefore:
 
 ---
 
-# 3. Keep Transactions Short
+## 3. Keep Transactions Short
 
 Long transactions create:
 
@@ -140,7 +140,7 @@ record outcome in another short transaction
 
 ---
 
-# 4. Validate Mutable State Inside the Transaction
+## 4. Validate Mutable State Inside the Transaction
 
 Static validation can happen before `BEGIN`:
 
@@ -162,7 +162,7 @@ Otherwise a time-of-check/time-of-use race exists.
 
 ---
 
-# 5. Atomic Conditional Updates
+## 5. Atomic Conditional Updates
 
 Often the safest design is smaller than an explicit locking workflow.
 
@@ -196,7 +196,7 @@ with a race between the read and write.
 
 ---
 
-# 6. Constraints Are Part of the Transaction Design
+## 6. Constraints Are Part of the Transaction Design
 
 Examples:
 
@@ -228,7 +228,7 @@ The unique constraint is the authoritative concurrency control.
 
 ---
 
-# 7. Savepoints
+## 7. Savepoints
 
 Savepoints create partial rollback points inside a transaction.
 
@@ -253,7 +253,7 @@ They are useful for controlled sub-work but do not turn one large, long-lived tr
 
 ---
 
-# 8. Deadlock Retry
+## 8. Deadlock Retry
 
 A deadlock can abort a transaction even when the business logic is correct.
 
@@ -279,7 +279,7 @@ Do not reuse stale values from the aborted attempt.
 
 ---
 
-# 9. Serialization Retry
+## 9. Serialization Retry
 
 Serializable or snapshot-based implementations may abort a transaction due to a concurrency conflict.
 
@@ -299,7 +299,7 @@ A retry is part of the transaction contract, not an exceptional architectural su
 
 ---
 
-# 10. Idempotency
+## 10. Idempotency
 
 Idempotency handles **repeated business requests**.
 
@@ -340,15 +340,15 @@ Only one should own execution; the other should observe/reuse the durable result
 
 ---
 
-# 11. Idempotency Is Not Isolation
+## 11. Idempotency Is Not Isolation
 
 Two separate questions:
 
-### Isolation
+#### Isolation
 
 Can two concurrent transactions corrupt shared database state?
 
-### Idempotency
+#### Idempotency
 
 Can one logical client operation be executed twice because of retry or timeout?
 
@@ -356,7 +356,7 @@ A payment endpoint usually needs both.
 
 ---
 
-# 12. Transactional Outbox
+## 12. Transactional Outbox
 
 Problem:
 
@@ -408,7 +408,7 @@ Then a publisher asynchronously forwards committed outbox rows to the broker.
 
 ---
 
-# 13. Outbox Delivery Semantics
+## 13. Outbox Delivery Semantics
 
 The outbox solves:
 
@@ -445,7 +445,7 @@ idempotent consumption
 
 ---
 
-# 14. Inbox / Consumer Deduplication
+## 14. Inbox / Consumer Deduplication
 
 Consumer:
 
@@ -468,11 +468,11 @@ The dedup marker and the consumer's business update should share the same local 
 
 ---
 
-# 15. CDC vs Outbox Poller
+## 15. CDC vs Outbox Poller
 
 Outbox events can be delivered by:
 
-### Polling publisher
+#### Polling publisher
 
 ```text
 query pending rows
@@ -482,7 +482,7 @@ mark sent
 
 Simple, but requires polling/claiming and cleanup.
 
-### Change Data Capture
+#### Change Data Capture
 
 A log-based system observes committed outbox inserts and publishes them downstream.
 
@@ -501,7 +501,7 @@ The outbox table remains the local atomicity bridge.
 
 ---
 
-# 16. Saga
+## 16. Saga
 
 A saga coordinates multiple independently committed steps.
 
@@ -533,9 +533,9 @@ Compensation itself can fail and must be retried/observed.
 
 ---
 
-# 17. Orchestration vs Choreography
+## 17. Orchestration vs Choreography
 
-## Orchestration
+### Orchestration
 
 A workflow coordinator issues commands and tracks state.
 
@@ -550,7 +550,7 @@ Costs:
 - coordinator logic
 - central workflow dependency
 
-## Choreography
+### Choreography
 
 Services react to events.
 
@@ -570,7 +570,7 @@ For complex money/order flows, explicit orchestration is often easier to reason 
 
 ---
 
-# 18. Saga State Machine
+## 18. Saga State Machine
 
 Persist workflow state.
 
@@ -603,7 +603,7 @@ Every transition should be:
 
 ---
 
-# 19. Two-Phase Commit
+## 19. Two-Phase Commit
 
 Two-phase commit coordinates participants that support a prepare/commit protocol.
 
@@ -636,7 +636,7 @@ Do not propose 2PC for Stripe + Kafka + PostgreSQL unless the actual participant
 
 ---
 
-# 20. Prepared Transactions Are Operational State
+## 20. Prepared Transactions Are Operational State
 
 A prepared transaction can retain resources while waiting for final resolution.
 
@@ -652,7 +652,7 @@ Operationally monitor:
 
 ---
 
-# 21. Long-Running Workflows
+## 21. Long-Running Workflows
 
 A business process may last minutes or days.
 
@@ -674,7 +674,7 @@ Persist a state machine and use short local transactions for each transition.
 
 ---
 
-# 22. Point of No Return
+## 22. Point of No Return
 
 Every workflow should identify irreversible or expensive transitions.
 
@@ -698,7 +698,7 @@ System design should model this explicitly.
 
 ---
 
-# 23. Transactional Workflow Architecture
+## 23. Transactional Workflow Architecture
 
 ```mermaid
 flowchart LR
@@ -728,35 +728,35 @@ Cross-service consistency is managed as durable workflow state.
 
 ---
 
-# 24. Failure Scenarios
+## 24. Failure Scenarios
 
-## Client times out after DB commit
+### Client times out after DB commit
 
 Use idempotency to return/reconstruct the committed result.
 
-## DB commits, publisher crashes
+### DB commits, publisher crashes
 
 Outbox event remains durable and can be published later.
 
-## Event delivered twice
+### Event delivered twice
 
 Consumer deduplicates or uses idempotent state transition.
 
-## Consumer commits DB change, acknowledgement lost
+### Consumer commits DB change, acknowledgement lost
 
 Broker redelivers; consumer deduplication protects the business update.
 
-## Payment succeeds, order service unavailable
+### Payment succeeds, order service unavailable
 
 Payment result/event is retried; workflow state reconciles.
 
-## Compensation fails
+### Compensation fails
 
 Persist compensation state and retry; alert if SLA exceeded.
 
 ---
 
-# 25. Observability
+## 25. Observability
 
 Track:
 
@@ -784,7 +784,7 @@ not only queue depth.
 
 ---
 
-# 26. Interview Decision Table
+## 26. Interview Decision Table
 
 | Situation | Prefer |
 |---|---|
@@ -799,41 +799,41 @@ not only queue depth.
 
 ---
 
-# 27. Common Mistakes
+## 27. Common Mistakes
 
-### Holding a transaction open across remote calls
+#### Holding a transaction open across remote calls
 
 Creates locks, retries, and uncertain external side effects.
 
-### Publishing an event before commit
+#### Publishing an event before commit
 
 Consumers may observe an event for a DB change that later rolls back.
 
-### Publishing only after commit without outbox
+#### Publishing only after commit without outbox
 
 Crash window can lose the event.
 
-### Saying Kafka gives exactly-once business processing
+#### Saying Kafka gives exactly-once business processing
 
 Broker guarantees do not automatically cover your database and external side effects.
 
-### Treating saga compensation as rollback
+#### Treating saga compensation as rollback
 
 Compensation is a new business action.
 
-### Using idempotency only in memory
+#### Using idempotency only in memory
 
 Process restart destroys the guarantee.
 
 ---
 
-# Interview Answer Template
+## Interview Answer Template
 
 > “The order and inventory rows live in one database, so I’ll protect that invariant with a short local transaction and an atomic stock decrement. The client request carries an idempotency key with a unique constraint. I won’t call payment or Kafka inside the transaction. The transaction writes an outbox event, which is published asynchronously. Downstream consumers deduplicate by event ID. The payment/inventory/shipping sequence is a persisted saga; failures trigger compensating actions rather than pretending we can roll back remote systems.”
 
 ---
 
-## References
+### References
 
 - PostgreSQL transaction processing: https://www.postgresql.org/docs/current/transactions.html
 - PostgreSQL isolation: https://www.postgresql.org/docs/current/transaction-iso.html

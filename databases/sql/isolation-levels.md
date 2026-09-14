@@ -21,7 +21,7 @@ The same isolation-level name can have implementation-specific behavior across P
 
 ---
 
-# 1. Start With the Invariant
+## 1. Start With the Invariant
 
 Example:
 
@@ -52,27 +52,27 @@ Choose the narrowest mechanism that reliably protects the rule.
 
 ---
 
-# 2. Standard Phenomena
+## 2. Standard Phenomena
 
-## Dirty read
+### Dirty read
 
 Read data another transaction has not committed.
 
-## Non-repeatable read
+### Non-repeatable read
 
 Read one row twice and observe a different committed value.
 
-## Phantom
+### Phantom
 
 Repeat a predicate/range query and observe a different matching row set.
 
-## Serialization anomaly
+### Serialization anomaly
 
 The final committed behavior cannot be explained by any serial one-at-a-time execution.
 
 ---
 
-# 3. Lost Update
+## 3. Lost Update
 
 Unsafe read-modify-write:
 
@@ -101,7 +101,7 @@ Check affected rows.
 
 ---
 
-# 4. Write Skew
+## 4. Write Skew
 
 Rule:
 
@@ -127,7 +127,7 @@ Possible protections:
 
 ---
 
-# 5. Read Uncommitted
+## 5. Read Uncommitted
 
 Weakest standard level.
 
@@ -139,7 +139,7 @@ Do not describe vendor behavior from the generic ANSI name alone.
 
 ---
 
-# 6. Read Committed
+## 6. Read Committed
 
 Typical model:
 
@@ -162,11 +162,11 @@ Read Committed is not “unsafe by definition.”
 
 ---
 
-# 7. Repeatable Read
+## 7. Repeatable Read
 
 The name hides implementation differences.
 
-## PostgreSQL
+### PostgreSQL
 
 Repeatable Read uses snapshot-isolation-style behavior.
 
@@ -180,7 +180,7 @@ but can still permit serialization anomalies/write-skew-style problems.
 
 Updating transactions can receive serialization failures and require retry.
 
-## InnoDB
+### InnoDB
 
 Repeatable Read is the default.
 
@@ -192,17 +192,17 @@ Therefore a PostgreSQL Repeatable Read mental model should not be blindly applie
 
 ---
 
-# 8. Serializable
+## 8. Serializable
 
 Serializable means successfully committed concurrent transactions behave like some serial ordering.
 
 Implementation strategies vary.
 
-## PostgreSQL
+### PostgreSQL
 
 Serializable Snapshot Isolation detects dangerous dependency structures and aborts transactions when required.
 
-## Lock-heavy implementations
+### Lock-heavy implementations
 
 Other systems may achieve serializable behavior through stronger locking/range protection.
 
@@ -216,7 +216,7 @@ Trade-offs can include:
 
 ---
 
-# 9. MVCC Is Not Isolation
+## 9. MVCC Is Not Isolation
 
 MVCC is an implementation technique for keeping multiple row versions and serving snapshots.
 
@@ -232,7 +232,7 @@ MVCC helps with concurrency, but business logic can still suffer from:
 
 ---
 
-# 10. Pessimistic Locking
+## 10. Pessimistic Locking
 
 ```sql
 SELECT *
@@ -256,7 +256,7 @@ Costs:
 
 ---
 
-# 11. Optimistic Concurrency
+## 11. Optimistic Concurrency
 
 Use a version:
 
@@ -285,7 +285,7 @@ The conflict path is part of the product design.
 
 ---
 
-# 12. Unique Constraints as Concurrency Control
+## 12. Unique Constraints as Concurrency Control
 
 Suppose a username must be unique.
 
@@ -311,7 +311,7 @@ The database invariant closes the race.
 
 ---
 
-# 13. Atomic State Transition
+## 13. Atomic State Transition
 
 Example:
 
@@ -333,7 +333,7 @@ Useful for:
 
 ---
 
-# 14. Deadlocks
+## 14. Deadlocks
 
 Deadlock:
 
@@ -356,7 +356,7 @@ Do not attempt to “eliminate all deadlocks” with fragile application sequenc
 
 ---
 
-# 15. Serialization Failure Retry
+## 15. Serialization Failure Retry
 
 Correct:
 
@@ -386,7 +386,7 @@ Bound retries; sustained retry storms indicate contention or bad transaction des
 
 ---
 
-# 16. Idempotency Is Different
+## 16. Idempotency Is Different
 
 Isolation protects **concurrent database state**.
 
@@ -406,7 +406,7 @@ Use an idempotency key with a durable uniqueness constraint/state record.
 
 ---
 
-# 17. Transaction Boundaries
+## 17. Transaction Boundaries
 
 Keep network calls outside DB transactions when possible.
 
@@ -431,7 +431,7 @@ Better architectures often use:
 
 ---
 
-# 18. Isolation and Replicas
+## 18. Isolation and Replicas
 
 A transaction isolation level on the primary does not automatically solve stale reads from asynchronous replicas.
 
@@ -446,7 +446,7 @@ Isolation and replication consistency are separate dimensions.
 
 ---
 
-# 19. Isolation Selection Framework
+## 19. Isolation Selection Framework
 
 | Requirement | Candidate approach |
 |---|---|
@@ -463,7 +463,7 @@ The final choice depends on the database implementation.
 
 ---
 
-# 20. Observability
+## 20. Observability
 
 Track:
 
@@ -482,41 +482,41 @@ A design without a contention metric is incomplete.
 
 ---
 
-# 21. Common Interview Mistakes
+## 21. Common Interview Mistakes
 
-### “Serializable means one transaction at a time”
+#### “Serializable means one transaction at a time”
 
 Not necessarily.
 
-### “Repeatable Read is identical everywhere”
+#### “Repeatable Read is identical everywhere”
 
 False.
 
-### “MVCC means reads never block”
+#### “MVCC means reads never block”
 
 Locking reads, DDL, and implementation details still matter.
 
-### “Pessimistic locking is always safer”
+#### “Pessimistic locking is always safer”
 
 It can create deadlocks and throughput collapse under contention.
 
-### “Optimistic locking is faster”
+#### “Optimistic locking is faster”
 
 Only when conflicts are sufficiently rare.
 
-### “Higher isolation fixes duplicate API requests”
+#### “Higher isolation fixes duplicate API requests”
 
 That is usually an idempotency problem.
 
 ---
 
-# Interview Answer Template
+## Interview Answer Template
 
 > “The invariant is that only one successful reservation can exist for this seat. I would enforce that in the database with a unique constraint/state transition rather than relying on a prior application read. If I need to inspect mutable capacity before updating it, I’ll use an atomic conditional update or lock the relevant row. For a cross-row invariant I’d consider Serializable and implement whole-transaction retry. I’ll keep the transaction short and monitor lock waits, deadlocks, and serialization retries.”
 
 ---
 
-## References
+### References
 
 - PostgreSQL isolation: https://www.postgresql.org/docs/current/transaction-iso.html
 - MySQL/InnoDB isolation: https://dev.mysql.com/doc/refman/8.4/en/innodb-transaction-isolation-levels.html

@@ -24,9 +24,9 @@ Do not mix their consistency and operational models.
 
 ---
 
-# Part I — Database Indexes
+## Part I — Database Indexes
 
-## 1. Why an Index Works
+### 1. Why an Index Works
 
 Without useful access structure:
 
@@ -51,7 +51,7 @@ Cost moved from read time into:
 
 ---
 
-# 2. B-tree / B+ Tree
+## 2. B-tree / B+ Tree
 
 General-purpose structure for:
 
@@ -64,7 +64,7 @@ Most relational OLTP indexing discussions start here.
 
 ---
 
-# 3. Composite Indexes
+## 3. Composite Indexes
 
 Example:
 
@@ -95,7 +95,7 @@ Do not create one enormous composite index for every possible query.
 
 ---
 
-# 4. Covering / Included Columns
+## 4. Covering / Included Columns
 
 Some engines let an index contain non-key payload columns.
 
@@ -113,7 +113,7 @@ But “covered” does not always mean “zero table access”; visibility/stora
 
 ---
 
-# 5. Partial / Filtered Index
+## 5. Partial / Filtered Index
 
 Index only the subset the query repeatedly needs.
 
@@ -133,7 +133,7 @@ Works only when the query predicate matches the index condition.
 
 ---
 
-# 6. Expression / Functional Index
+## 6. Expression / Functional Index
 
 ```sql
 CREATE UNIQUE INDEX idx_users_lower_email
@@ -144,9 +144,9 @@ Useful when an expression is a stable recurring access path.
 
 ---
 
-# 7. Specialized PostgreSQL Examples
+## 7. Specialized PostgreSQL Examples
 
-## GIN
+### GIN
 
 Useful for composite values such as:
 
@@ -154,11 +154,11 @@ Useful for composite values such as:
 - arrays
 - full-text data structures
 
-## GiST/SP-GiST
+### GiST/SP-GiST
 
 Useful for supported extensible geometric/range/search structures.
 
-## BRIN
+### BRIN
 
 Useful for huge physically correlated tables such as append-time data.
 
@@ -166,7 +166,7 @@ BRIN is small because it summarizes block ranges rather than indexing every row 
 
 ---
 
-# 8. InnoDB Clustered vs Secondary Indexes
+## 8. InnoDB Clustered vs Secondary Indexes
 
 In InnoDB:
 
@@ -185,7 +185,7 @@ Index design is tied to primary-key design.
 
 ---
 
-# 9. Selectivity
+## 9. Selectivity
 
 A highly selective predicate usually narrows the data substantially.
 
@@ -211,7 +211,7 @@ Index value depends on **data distribution + query pattern**, not a field-type s
 
 ---
 
-# 10. Index and ORDER BY
+## 10. Index and ORDER BY
 
 An index can sometimes produce data in needed order and avoid a large sort.
 
@@ -233,7 +233,7 @@ This is especially valuable for keyset pagination.
 
 ---
 
-# 11. Write Amplification
+## 11. Write Amplification
 
 Each write may update:
 
@@ -262,7 +262,7 @@ Over-indexing can make a read-optimized schema fail under write load.
 
 ---
 
-# 12. Index Maintenance
+## 12. Index Maintenance
 
 Indexes can become:
 
@@ -283,7 +283,7 @@ Review:
 
 ---
 
-# 13. Lock Footprint
+## 13. Lock Footprint
 
 Indexes affect concurrency.
 
@@ -303,7 +303,7 @@ This is especially important in InnoDB next-key/range locking.
 
 ---
 
-# 14. Explain Plans
+## 14. Explain Plans
 
 Validate indexes with the engine.
 
@@ -322,7 +322,7 @@ Do not “force index” before understanding why the optimizer rejected it.
 
 ---
 
-# Part II — Search Indexes
+## Part II — Search Indexes
 
 A dedicated search index is different.
 
@@ -340,7 +340,7 @@ The transactional DB typically remains authoritative.
 
 ---
 
-# 15. Derived Search Architecture
+## 15. Derived Search Architecture
 
 ```mermaid
 flowchart LR
@@ -357,7 +357,7 @@ This is normally eventually consistent.
 
 ---
 
-# 16. Correctness of the Index Pipeline
+## 16. Correctness of the Index Pipeline
 
 You need:
 
@@ -384,7 +384,7 @@ Reject version 41 if version 42 is already indexed.
 
 ---
 
-# 17. Reindexing
+## 17. Reindexing
 
 Safe pattern:
 
@@ -406,7 +406,7 @@ Do not mutate an incompatible index schema in place without a rollback plan.
 
 ---
 
-# 18. Sharding the Search Index
+## 18. Sharding the Search Index
 
 Choose a routing/partition strategy based on:
 
@@ -422,7 +422,7 @@ A distributed index should support targeted routing where possible.
 
 ---
 
-# 19. Pagination
+## 19. Pagination
 
 Deep offset:
 
@@ -437,7 +437,7 @@ Prefer search-after/keyset/cursor techniques for deep continuous navigation.
 
 ---
 
-# 20. Source of Truth
+## 20. Source of Truth
 
 Never let a slightly stale search result become the final authority for:
 
@@ -450,7 +450,7 @@ Search can discover a product. Checkout should revalidate authoritative state.
 
 ---
 
-# 21. Metrics
+## 21. Metrics
 
 Database index:
 
@@ -475,63 +475,63 @@ Search index:
 
 ---
 
-# 22. Common Mistakes
+## 22. Common Mistakes
 
-### Index every field
+#### Index every field
 
 Write amplification grows without guaranteed read benefit.
 
-### “Low cardinality means never index”
+#### “Low cardinality means never index”
 
 Too absolute.
 
-### Treat search index as source of truth
+#### Treat search index as source of truth
 
 Wrong consistency model for critical decisions.
 
-### Ignore deletes
+#### Ignore deletes
 
 Stale documents accumulate.
 
-### Ignore version ordering
+#### Ignore version ordering
 
 Old events overwrite new documents.
 
-### Reindex in place
+#### Reindex in place
 
 Risky migration and rollback.
 
-### Unlimited shard fan-out
+#### Unlimited shard fan-out
 
 Tail latency grows with slowest shard.
 
 ---
 
-# Interview Questions
+## Interview Questions
 
-## Database index vs search index?
+### Database index vs search index?
 
 A DB index is part of transactional query execution. A search index is commonly a derived retrieval system optimized for text/relevance/discovery.
 
-## Why can an index hurt writes?
+### Why can an index hurt writes?
 
 Every affected index must be maintained and replicated/logged.
 
-## What is a partial index useful for?
+### What is a partial index useful for?
 
 A frequently queried small subset of a larger table.
 
-## Why can a missing index cause contention?
+### Why can a missing index cause contention?
 
 Locking statements may scan and lock broader ranges.
 
-## How do you safely rebuild a search index?
+### How do you safely rebuild a search index?
 
 Versioned new index, backfill, catch up changes, validate, switch alias, retain rollback.
 
 ---
 
-## References
+### References
 
 - PostgreSQL indexes: https://www.postgresql.org/docs/current/indexes.html
 - PostgreSQL GIN: https://www.postgresql.org/docs/current/gin.html

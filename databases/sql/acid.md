@@ -23,7 +23,7 @@ ACID protects transaction processing inside the database's transactional boundar
 
 ---
 
-# 1. Atomicity
+## 1. Atomicity
 
 Atomicity means:
 
@@ -54,7 +54,7 @@ If the inventory update fails business validation and the transaction rolls back
 
 ---
 
-# 2. Atomicity Is Not “Instant”
+## 2. Atomicity Is Not “Instant”
 
 A transaction can take time.
 
@@ -69,7 +69,7 @@ Other transactions may:
 
 ---
 
-# 3. Atomicity Stops at the Transaction Boundary
+## 3. Atomicity Stops at the Transaction Boundary
 
 This is not atomic:
 
@@ -105,7 +105,7 @@ For cross-system reliability, use:
 
 ---
 
-# 4. Consistency
+## 4. Consistency
 
 ACID “C” is often misunderstood.
 
@@ -132,7 +132,7 @@ If an invariant is neither:
 
 ---
 
-# 5. Constraints as Consistency
+## 5. Constraints as Consistency
 
 Examples:
 
@@ -162,7 +162,7 @@ which has a race.
 
 ---
 
-# 6. Cross-Row Business Rules
+## 6. Cross-Row Business Rules
 
 Some rules do not fit a simple constraint.
 
@@ -183,7 +183,7 @@ A normal snapshot transaction can let individually valid writes combine into inv
 
 ---
 
-# 7. Isolation
+## 7. Isolation
 
 Isolation controls the observable effects of concurrent transactions.
 
@@ -201,7 +201,7 @@ See `isolation-levels.md`.
 
 ---
 
-# 8. Isolation Does Not Mean No Concurrency
+## 8. Isolation Does Not Mean No Concurrency
 
 Serializable does not necessarily execute transactions one-by-one.
 
@@ -223,7 +223,7 @@ The actual database algorithm matters.
 
 ---
 
-# 9. Durability
+## 9. Durability
 
 Durability means a successful commit survives the class of failures covered by the database's configured durability guarantees.
 
@@ -244,7 +244,7 @@ But durability depends on:
 
 ---
 
-# 10. Durability Has Levels in Real Architectures
+## 10. Durability Has Levels in Real Architectures
 
 Possible acknowledgement points:
 
@@ -270,7 +270,7 @@ Ask:
 
 ---
 
-# 11. Durability Is Not Backup
+## 11. Durability Is Not Backup
 
 A durable replicated database can durably preserve:
 
@@ -292,7 +292,7 @@ Restore testing is part of correctness.
 
 ---
 
-# 12. ACID vs CAP Consistency
+## 12. ACID vs CAP Consistency
 
 ACID consistency:
 
@@ -312,7 +312,7 @@ Never use them interchangeably in an interview.
 
 ---
 
-# 13. ACID vs BASE
+## 13. ACID vs BASE
 
 “BASE” is often used as shorthand for systems accepting weaker/immediate consistency in exchange for availability or distributed flexibility.
 
@@ -334,7 +334,7 @@ Classify semantics per operation.
 
 ---
 
-# 14. Example: Checkout
+## 14. Example: Checkout
 
 Local DB transaction can atomically:
 
@@ -360,7 +360,7 @@ This is the ACID boundary an experienced interviewer expects you to identify.
 
 ---
 
-# 15. Failure Matrix
+## 15. Failure Matrix
 
 | Failure | ACID helps? | Additional design |
 |---|---:|---|
@@ -375,41 +375,41 @@ This is the ACID boundary an experienced interviewer expects you to identify.
 
 ---
 
-# 16. Common Mistakes
+## 16. Common Mistakes
 
-### “ACID means no race conditions”
+#### “ACID means no race conditions”
 
 Wrong isolation or application logic can still create anomalies.
 
-### “Consistency means replicas agree”
+#### “Consistency means replicas agree”
 
 That is a different consistency concept.
 
-### “Commit means backed up”
+#### “Commit means backed up”
 
 No.
 
-### “A transaction can include any business operation”
+#### “A transaction can include any business operation”
 
 Only participating transactional resources share atomic commit.
 
-### “Serializable removes need for idempotency”
+#### “Serializable removes need for idempotency”
 
 Client retries are a separate problem.
 
-### “Rollback can undo an external API”
+#### “Rollback can undo an external API”
 
 No.
 
 ---
 
-# Interview Answer Template
+## Interview Answer Template
 
 > “ACID applies inside the database transaction boundary. Atomicity ensures the order, inventory mutation, and outbox row commit together. Consistency is the set of invariants I actually enforce, such as non-negative inventory and unique idempotency keys. Isolation protects concurrent decisions; I’ll choose the narrowest mechanism that prevents the relevant anomaly. Durability defines what a reported commit survives, but backup and multi-region RPO are separate concerns. Remote payment and messaging are outside this ACID boundary, so they need idempotency, outbox, workflow state, and reconciliation.”
 
 ---
 
-## References
+### References
 
 - PostgreSQL transaction isolation: https://www.postgresql.org/docs/current/transaction-iso.html
 - PostgreSQL transaction processing: https://www.postgresql.org/docs/current/transactions.html
