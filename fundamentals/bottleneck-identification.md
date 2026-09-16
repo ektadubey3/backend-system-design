@@ -155,13 +155,20 @@ top endpoint
 
 ## Little's Law
 
-For a stable system:
+Use [Little's Law and its measurement boundary](latency-vs-throughput.md#concurrency-and-littles-law): `L = λ × W`, where `L` is mean queued plus executing work, `λ` is mean throughput, and `W` is mean time in that same system.
 
-```text
-L = λ × W
-```
+At a stable 2,000 requests/s and 100 ms mean response time, average concurrency is 200. This does not justify a 200-connection DB pool: each request may spend only part of its lifetime using a connection. A growing backlog is not a steady-state sizing measurement.
 
-Use as a model, then validate.
+## Worked Diagnosis — Low CPU, High p99
+
+Assume application CPU is 40%, p99 rose from 150 ms to 1 s, all 100 DB connections are occupied, and completion throughput is flat. These are observations, not proof that the pool is too small.
+
+1. Split end-to-end time into pool wait, query execution, and other spans; compare the affected routes and recent changes.
+2. If DB lock wait rose on one inventory row, inspect blocking transactions. Shorten the transaction and remove remote I/O from it; bound admission while recovering. Adding app replicas would add waiters.
+3. If DB execution is healthy and capacity testing shows spare headroom, a carefully increased pool may help. Include the **sum of pools across instances**, not just one process.
+4. Replay the same workload shape, including hot keys, at the same offered load. Verify goodput, tail latency, rejection, lock wait, and downstream saturation. Roll back if useful completions fall or the SLO worsens.
+
+A load generator that waits for each response before sending the next request reduces offered load as the service slows. For arrival-driven traffic, also test a controlled arrival schedule and record generator lag or missed sends; otherwise the test can hide queueing.
 
 ## Common Mistakes
 

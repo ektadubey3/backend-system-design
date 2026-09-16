@@ -108,13 +108,13 @@ Example:
 
 | Operation | Consistency need |
 |---|---|
-| Ledger mutation | Strong |
+| Ledger mutation | Atomic balanced posting; isolation sufficient to prevent invariant violations |
 | Account activity projection | Can lag |
 | Fraud analytics | Eventual |
 | Notification | Eventual |
 | Recommendation | Eventual |
 
-Strong consistency improves correctness but may require coordination and reduce availability or increase latency.
+Name the guarantee: linearizability concerns real-time visibility/order; serializability concerns equivalence to a serial transaction execution. Neither term substitutes for valid business logic or the correct transaction boundary. Coordination can reduce availability or increase latency. See [consistency terminology](../interview/scenario-study-guide.md#shared-vocabulary).
 
 Availability-first behavior keeps serving requests but requires a divergence/convergence model.
 
@@ -129,7 +129,7 @@ A local replica can often respond faster than a globally coordinated read.
 ```text
 Local read
   ↓
-10-30 ms
+illustrative assumption: 10-30 ms
   ↓
 may be stale
 ```
@@ -633,11 +633,13 @@ A managed service can be the more scalable engineering decision if it removes un
 Suppose:
 
 ```text
-100M new URLs/day
+100M new URLs/month (same baseline as interview/capacity-estimation.md)
 redirect path is latency-sensitive
 reads greatly exceed writes
 short-code lookup is by primary key
 ```
+
+Assume 30 days/month: `100,000,000 / (30 × 86,400) ≈ 39` average creates/s. At a 100:1 redirect-to-create ratio, that is about 3,858 redirects/s. An illustrative 10× peak gives about 386 creates/s and 38,580 redirects/s. Validate skew, storage growth, query cost, and failure headroom before choosing capacity. See [capacity estimation](../interview/capacity-estimation.md).
 
 Do not jump directly to “NoSQL + Redis.”
 

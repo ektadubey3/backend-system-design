@@ -1,5 +1,7 @@
 # Rapid Review
 
+Use this as a final checklist. For practice with model reasoning, use the [Scenario Study Guide](scenario-study-guide.md); for precise terms, use its [shared vocabulary](scenario-study-guide.md#shared-vocabulary).
+
 ## Before Drawing
 
 - users and critical flows

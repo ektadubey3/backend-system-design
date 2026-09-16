@@ -1,5 +1,7 @@
 # System Design Decision Frameworks
 
+This is a short rehearsal card. [Trade-off Analysis](../fundamentals/trade-off-analysis.md) owns the detailed comparisons; [Architecture Decision Framework](../architecture-patterns/architecture-decision-framework.md) adds migration and reversal. Practice applying them in the [scenario study guide](scenario-study-guide.md).
+
 Use the same structure for important decisions:
 
 ```text

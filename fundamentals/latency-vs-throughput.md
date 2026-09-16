@@ -95,6 +95,12 @@ transactions/sec
 
 Higher throughput is useful only if correctness and latency targets still hold.
 
+## Measurement Contract
+
+For each metric, name the operation, observation point, population, unit, and time window. Separate offered request rate, admitted rate, completed throughput, and successful completions within the deadline (goodput). A fast rejection is not successful business work.
+
+For a fleet percentile, aggregate compatible latency histograms before computing the quantile; do not average instance p99s. Retain timeout/error counts alongside latency, and compare affected routes, regions, and versions. See [instrumentation and distributions](../observability/signals-and-diagnostic-questions.md).
+
 ## Concurrency and Little's Law
 
 For a stable system:
@@ -113,7 +119,7 @@ Example:
 2,000 requests/sec × 0.1 sec ≈ 200 concurrent requests
 ```
 
-This is a planning model, not a substitute for load testing.
+Use averages over the same stable window and system boundary: time in system includes waiting plus service, and work in the system includes queued plus executing work. Do not substitute p99 latency for mean `W`, or offered traffic for admitted/completed traffic when requests are rejected. The result is average concurrency, not a safe pool limit. Add measured headroom and load-test burst and failure conditions.
 
 ## Saturation
 
@@ -161,7 +167,7 @@ If:
 API p99 target = 300 ms
 ```
 
-allocate a budget across edge, app, database, dependencies, and safety margin. Exact values are assumptions; the exercise exposes where the budget can be consumed.
+allocate deadline budgets across edge, app, database, dependencies, and safety margin. Sequential work consumes cumulative time; parallel work is bounded by the slowest required branch plus overhead. **Do not add component p99 values and call the sum an end-to-end p99**: percentiles are not additive. Measure the complete journey. Exact budgets are assumptions to validate.
 
 ## Overload
 
@@ -180,14 +186,14 @@ A timeout without cancellation can still waste server work after the caller has 
 ## Retry Amplification
 
 ```text
-client retries 3×
-gateway retries 2×
-service retries 2×
+client: 3 total attempts (initial + 2 retries)
+gateway: 2 total attempts per call (initial + 1 retry)
+service: 2 total attempts per call (initial + 1 retry)
 
 one logical request can create up to 12 downstream attempts
 ```
 
-Retries must fit inside a deadline and retry budget.
+The upper bound is `3 × 2 × 2 = 12` when every layer exhausts its attempts. If the numbers instead meant **additional retries**, the bound would be `4 × 3 × 3 = 36`. Use **total attempts** consistently. Retries must fit inside a deadline and retry budget; see [retry ownership](../reliability/deadlines-timeouts-and-retries.md).
 
 ## Common Mistakes
 
@@ -206,3 +212,4 @@ Retries must fit inside a deadline and retry budget.
 
 - [Google SRE — Handling Overload](https://sre.google/sre-book/handling-overload/)
 - [Google SRE — Addressing Cascading Failures](https://sre.google/sre-book/addressing-cascading-failures/)
+- [Prometheus — Histograms and summaries](https://prometheus.io/docs/practices/histograms/)

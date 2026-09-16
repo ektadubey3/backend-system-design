@@ -6,13 +6,13 @@ Overload begins when offered work exceeds a bottleneck's sustainable capacity. U
 
 ## Queueing tells the story
 
-Little's Law relates average concurrency `L`, throughput `lambda`, and time in system `W`:
+For a stable system and one consistent boundary, Little's Law relates average concurrency `L`, throughput `lambda`, and mean time in system `W`. See the [worked example and assumptions](../fundamentals/latency-vs-throughput.md#concurrency-and-littles-law):
 
 ```text
 L = lambda * W
 ```
 
-As a saturated server accepts more concurrent work without increasing completion rate, time in system grows. That longer latency causes caller timeouts and retries, adding more offered load. The objective under overload is not 100% acceptance; it is maximum useful completions with bounded latency.
+During sustained overload the backlog is not stable, so do not use this equation to size an ever-growing queue. Track backlog change as admitted arrival rate minus departure rate (completions plus expired/discarded work). As a saturated server accepts more concurrent work without increasing completion rate, time in system grows. That longer latency causes caller timeouts and retries, adding more offered load. The objective under overload is not 100% acceptance; it is maximum useful completions with bounded latency.
 
 ## Bound every scarce resource
 

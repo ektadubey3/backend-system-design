@@ -17,6 +17,8 @@ Every alert has owner, severity, user impact, query/dashboard, immediate actions
 
 SLO burn, failed critical journeys, or expired async work are symptoms. CPU, pool saturation, replica lag, partition skew, and dependency errors are causes or risk indicators. Page on symptoms when possible and display causes in the incident view. Also alert directly on a hard safety margin—such as disk/log retention about to make recovery impossible—before user failure.
 
+Use [SLIs, SLOs, and error budgets](../reliability/slis-slos-and-error-budgets.md) for the indicator, denominator, window, and budget definitions; this chapter focuses on alerts and response.
+
 Multi-window burn rules use a short window for responsiveness and a longer one to confirm sustained consumption. Pair fast/high-burn pages with slower/lower-burn tickets. Test alert math against no-traffic and low-volume periods.
 
 ## Incident dashboard

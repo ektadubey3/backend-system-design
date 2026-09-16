@@ -44,18 +44,18 @@ PAYMENT_PENDING
        CANCELLED
 ```
 
-Invalid transitions must be rejected.
+Invalid transitions must be rejected. Here `PAID` means capture is confirmed; authorization alone does not establish it. A timeout is an unknown outcome, not `PAYMENT_FAILED`: remain pending and query/reconcile. This minimal model omits refund and cancellation-after-capture flows, which require explicit states and compensation policies.
 
 ## Interfaces
 
 ```java
 interface OrderRepository {
     Optional<Order> findById(OrderId id);
-    void save(Order order);
+    boolean saveIfVersionMatches(Order order, long expectedVersion);
 }
 
 interface PaymentClient {
-    PaymentResult authorize(
+    PaymentResult capture(
         OrderId orderId,
         Money amount,
         IdempotencyKey key,
@@ -91,7 +91,22 @@ If two requests can modify the same state, define:
 - serialized executor;
 - immutable event stream.
 
-Do not assume single-threaded execution if production does not guarantee it.
+Do not assume single-threaded execution if production does not guarantee it. The in-memory `markPaid()` check protects one object, not two processes reading the same row. The repository contract `saveIfVersionMatches(order, expectedVersion)` returns false on a version conflict; a blind `save(order)` would not enforce this boundary.
+
+For this single-row invariant, a PostgreSQL conditional update can enforce the transition:
+
+```sql
+UPDATE orders
+SET status = 'PAID', version = version + 1
+WHERE id = :order_id
+  AND status = 'PAYMENT_PENDING'
+  AND version = :expected_version
+RETURNING id, status, version;
+```
+
+Call this only after verified capture. One returned row means the transition was applied; no row means reload and distinguish missing order, duplicate completion, or conflicting state. Record the provider capture ID under an appropriate uniqueness constraint. If publishing an event, insert the outbox record in the same transaction. At PostgreSQL Read Committed, a conflicting updater waits and rechecks the predicate against the updated row. See [PostgreSQL transaction isolation](https://www.postgresql.org/docs/current/transaction-iso.html).
+
+Do not hold a database transaction open across a provider call. Persist intent, perform the call with stable idempotency, then commit the result; reconciliation handles a crash between those stages. This example does not enforce multi-row invariants or make external effects atomic. See [database consistency boundaries](../databases/consistency-boundaries.md).
 
 ## Error Model
 

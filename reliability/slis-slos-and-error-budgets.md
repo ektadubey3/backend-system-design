@@ -38,6 +38,8 @@ A rolling 28- or 30-day window reflects recent behavior continuously; a calendar
 
 Burn rate compares actual bad-event rate with the rate that would exactly consume the budget over the SLO window. High burn over a short and a longer confirmation window detects severe incidents quickly without paging on momentary noise. Lower burn over longer windows catches slow exhaustion.
 
+For example, a 99.9% SLO allows a bad-event fraction of `0.001`. An observed 1% bad-event fraction gives `burn rate = 0.01 / 0.001 = 10`. At a comparable eligible-event rate, sustained burn at this level would consume a full 30-day budget in about 3 days; actual exhaustion depends on remaining budget and future traffic.
+
 Alert when a human can take a defined action. Ticket on long-term risk; page on imminent user-impacting budget loss. Keep cause metrics—CPU, queue depth, replica lag—for diagnosis, but page primarily on symptoms or exhaustion of a directly protective resource.
 
 ## SLO versus SLA

@@ -96,7 +96,9 @@ Use backoff and jitter.
 Idempotency-Key: payment-order-5001
 ```
 
-Persist the key with the business result. Memory-only deduplication does not survive process failure.
+Persist a scoped key (for example tenant + operation + client key), request fingerprint, and operation status/result. Reject reuse with a different payload. Enforce uniqueness and commit the key plus the local business mutation atomically; a separate “check then insert” races under concurrency. A duplicate still in progress needs a documented pending/status-lookup response.
+
+A local transaction does not include a payment provider. Carry a stable provider key, persist the provider operation ID, and reconcile ambiguous outcomes. Retention must cover the supported retry/replay horizon; after expiry, duplicate protection may no longer hold. Memory-only deduplication does not survive process failure. See [delivery semantics and idempotency](../messaging/delivery-semantics-and-idempotency.md) for consumer transactions and external effects.
 
 ## Durable Async Work
 
@@ -110,7 +112,7 @@ durably persist / enqueue
 acknowledge
 ```
 
-Do not acknowledge first and hope persistence succeeds afterward.
+Do not acknowledge first and hope persistence succeeds afterward. “Accepted” means durable responsibility for processing, not completed business work; expose status and a completion SLO. If acceptance updates a database and publishes an event, use a [transactional outbox](../messaging/transactional-outbox-and-cdc.md) or another explicit atomicity protocol instead of an unprotected dual write.
 
 ## Reconciliation
 
@@ -178,6 +180,10 @@ Reliability:
 ## Interview Answer Template
 
 > “I define reliability from the business invariant. Externally retried operations use durable idempotency. Accepted async work is persisted before acknowledgement and consumers tolerate duplicates. Calls use deadlines and bounded retries for transient faults, while reconciliation covers cross-system states that cannot share one transaction. Replication and backup solve different failure classes.”
+
+## Continue Without Repeating the Fundamentals
+
+This chapter owns the business-outcome model. Use [availability](availability.md) for eligible-operation success, [fault tolerance](fault-tolerance.md) for specified faults, and [reliability engineering](../reliability/README.md) for operational controls and recovery drills. Apply them together in the [scenario study guide](../interview/scenario-study-guide.md).
 
 ## References
 

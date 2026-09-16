@@ -23,3 +23,5 @@ For interview preparation, do not treat these topics as isolated definitions. Pr
 - Apply CAP/PACELC and failure reasoning in [Distributed Systems](../distributed-systems/README.md).
 - Turn fault-tolerance mechanisms into an operational strategy in [Reliability Engineering](../reliability/README.md).
 - Use the concepts under time pressure with the [45-Minute Interview Framework](../interview/45-minute-framework.md).
+
+- Rehearse failure, bottleneck, and trade-off decisions with the [Scenario Study Guide](../interview/scenario-study-guide.md).

@@ -174,3 +174,7 @@ Corrections and high-quality additions are welcome. Prefer material that improve
 ## License
 
 MIT.
+
+## Scenario-Based Revision
+
+Use the [Scenario Study Guide](interview/scenario-study-guide.md) for failure diagnosis, bottleneck evidence, and defensible trade-offs. The [documentation review](interview/documentation-review.md) records the source gaps corrected and the boundaries between overlapping chapters.

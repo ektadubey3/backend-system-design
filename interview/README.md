@@ -31,3 +31,8 @@ For every case study:
 
 - Work through the complete [Case Study Library](../case-studies/README.md).
 - Use the design frameworks in [Caching](../caching/cache-design-framework.md), [Messaging](../messaging/messaging-design-framework.md), [Distributed Systems](../distributed-systems/distributed-systems-design-framework.md), [Reliability](../reliability/reliability-design-framework.md), [Security](../security/security-design-framework.md), [Observability](../observability/observability-design-framework.md), [Architecture Patterns](../architecture-patterns/architecture-decision-framework.md), and [Cloud Patterns](../cloud-patterns/cloud-design-framework.md).
+
+## Focused Scenario Revision
+
+- [Scenario Study Guide](scenario-study-guide.md): eight drills with model reasoning, counterarguments, and follow-ups.
+- [Documentation Review](documentation-review.md): prioritized corrections and topic ownership.
